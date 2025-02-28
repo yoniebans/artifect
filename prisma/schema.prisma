@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Project entity
+model Project {
+  id        Int       @id @default(autoincrement())
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  
+  // Relationships
+  artifacts Artifact[]
+
+  @@map("projects")
+}
+
+// Lifecycle phase (Requirements, Design, etc.)
+model LifecyclePhase {
+  id    Int    @id @default(autoincrement())
+  name  String
+  order Int
+  
+  // Relationships
+  artifactTypes ArtifactType[]
+
+  @@map("lifecycle_phases")
+}
+
+// Artifact type (Vision Document, Functional Requirements, etc.)
+model ArtifactType {
+  id              Int           @id @default(autoincrement())
+  name            String
+  slug            String        @unique
+  syntax          String        @default("markdown")
+  lifecyclePhaseId Int          @map("lifecycle_phase_id")
+  
+  // Relationships
+  lifecyclePhase  LifecyclePhase @relation(fields: [lifecyclePhaseId], references: [id])
+  artifacts       Artifact[]
+  dependentTypes  TypeDependency[] @relation("DependentType")
+  dependencyTypes TypeDependency[] @relation("DependencyType")
+
+  @@map("artifact_types")
+}
+
+// Artifact type dependencies
+model TypeDependency {
+  dependentTypeId  Int @map("dependent_type_id")
+  dependencyTypeId Int @map("dependency_type_id")
+  
+  // Relationships
+  dependentType  ArtifactType @relation("DependentType", fields: [dependentTypeId], references: [id])
+  dependencyType ArtifactType @relation("DependencyType", fields: [dependencyTypeId], references: [id])
+
+  @@id([dependentTypeId, dependencyTypeId])
+  @@map("artifact_type_dependencies")
+}
+
+// Artifact state (To Do, In Progress, Approved, etc.)
+model ArtifactState {
+  id   Int    @id @default(autoincrement())
+  name String
+  
+  // Relationships
+  artifacts          Artifact[]
+  fromStateTransitions StateTransition[] @relation("FromState")
+  toStateTransitions   StateTransition[] @relation("ToState")
+
+  @@map("artifact_states")
+}
+
+// State transitions
+model StateTransition {
+  id          Int @id @default(autoincrement())
+  fromStateId Int @map("from_state_id")
+  toStateId   Int @map("to_state_id")
+  
+  // Relationships
+  fromState ArtifactState @relation("FromState", fields: [fromStateId], references: [id])
+  toState   ArtifactState @relation("ToState", fields: [toStateId], references: [id])
+
+  @@map("state_transitions")
+}
+
+// Main artifact entity
+model Artifact {
+  id               Int       @id @default(autoincrement())
+  projectId        Int       @map("project_id")
+  artifactTypeId   Int       @map("artifact_type_id")
+  currentVersionId Int?      @map("current_version_id") @unique
+  stateId          Int       @map("state_id")
+  name             String
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime? @updatedAt @map("updated_at")
+  
+  // Relationships
+  project           Project           @relation(fields: [projectId], references: [id])
+  artifactType      ArtifactType      @relation(fields: [artifactTypeId], references: [id])
+  state             ArtifactState     @relation(fields: [stateId], references: [id])
+  currentVersion    ArtifactVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  versions          ArtifactVersion[] @relation("ArtifactVersions")
+  interactions      ArtifactInteraction[]
+  reasoningSummaries ReasoningSummary[]
+
+  @@map("artifacts")
+}
+
+// Version control for artifacts
+model ArtifactVersion {
+  id             Int       @id @default(autoincrement())
+  artifactId     Int       @map("artifact_id")
+  versionNumber  Int       @map("version_number")
+  content        String
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  // Relationships
+  artifact               Artifact                @relation("ArtifactVersions", fields: [artifactId], references: [id])
+  artifactCurrentVersion Artifact?               @relation("CurrentVersion")
+  interactions           ArtifactInteraction[]
+  summaryVersions        SummaryVersion[]
+  // Workaround for circular dependencies
+  // reasoningEntries    ReasoningEntry[]
+
+  @@map("artifact_versions")
+}
+
+// Interactions with artifacts (user messages, assistant responses)
+model ArtifactInteraction {
+  id             Int       @id @default(autoincrement())
+  artifactId     Int       @map("artifact_id")
+  versionId      Int?      @map("version_id")
+  role           String    // 'user' or 'assistant'
+  content        String
+  sequenceNumber Int       @map("sequence_number")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  // Relationships
+  artifact ArtifactVersion? @relation(fields: [versionId], references: [id])
+  version  Artifact        @relation(fields: [artifactId], references: [id])
+
+  @@map("artifact_interactions")
+}
+
+// Reasoning summaries for artifacts
+model ReasoningSummary {
+  id           Int      @id @default(autoincrement())
+  artifactId   Int      @map("artifact_id")
+  summary      String
+  lastUpdated  DateTime @default(now()) @map("last_updated")
+  
+  // Relationships
+  artifact         Artifact           @relation(fields: [artifactId], references: [id])
+  reasoningPoints  ReasoningPoint[]
+  summaryVersions  SummaryVersion[]
+
+  @@map("reasoning_summaries")
+}
+
+// Link between reasoning summaries and artifact versions
+model SummaryVersion {
+  summaryId  Int @map("summary_id")
+  versionId  Int @map("version_id")
+  
+  // Relationships
+  summary  ReasoningSummary @relation(fields: [summaryId], references: [id])
+  version  ArtifactVersion  @relation(fields: [versionId], references: [id])
+
+  @@id([summaryId, versionId])
+  @@map("summary_versions")
+}
+
+// Specific reasoning points within summaries
+model ReasoningPoint {
+  id              Int    @id @default(autoincrement())
+  summaryId       Int    @map("summary_id")
+  category        String
+  point           String
+  importanceScore Int    @map("importance_score")
+  
+  // Relationships
+  summary ReasoningSummary @relation(fields: [summaryId], references: [id])
+
+  @@map("reasoning_points")
+}
