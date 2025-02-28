@@ -98,3 +98,49 @@ DATABASE_URL="postgresql://user:password@localhost:5432/dbname?schema=public"
 PORT=3000
 NODE_ENV=development
 ```
+
+## Running Test
+
+To run the tests we've created, add or edit the following scripts in your package.json:
+
+```json
+"scripts": {
+  // ... existing scripts
+  "test:db": "jest src/database --runInBand",
+  "test:config": "jest src/config --runInBand",
+  "test:app": "jest src/app --runInBand",
+  "test:all": "jest --runInBand",
+  "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
+  // ... other scripts
+}
+```
+
+The `--runInBand` flag ensures tests run sequentially, which is important for database tests.
+
+You can run the tests with:
+
+```bash
+# Run all unit tests
+npm run test:all
+
+# Run just database tests
+npm run test:db
+
+# Run just config tests
+npm run test:config
+
+# Run just app tests
+npm run test:app
+
+# Run end-to-end tests
+npm run test:e2e
+```
+
+These minimal test suites verify:
+
+1. The database connection works through PrismaService
+2. Configuration and validation are working correctly
+3. The App service/controller are functioning
+4. Basic e2e test verifies the system works end-to-end
+
+As you implement more features in future chunks, you can expand these tests.
