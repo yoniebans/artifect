@@ -4,12 +4,12 @@ import { ProjectRepository } from './project.repository';
 import { ArtifactRepository } from './artifact.repository';
 import { StateRepository } from './state.repository';
 import { ReasoningRepository } from './reasoning.repository';
-import { CacheService } from '../services/cache/cache.service';
+import { CacheModule } from '../services/cache/cache.module';
 
 @Module({
+    imports: [CacheModule],
     providers: [
         PrismaService,
-        CacheService,
         ProjectRepository,
         ArtifactRepository,
         StateRepository,

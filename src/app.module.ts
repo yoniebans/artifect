@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './database/prisma.service';
 import { RepositoriesModule } from './repositories/repositories.module';
+import { CacheModule } from './services/cache/cache.module';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation.schema';
 
@@ -14,6 +15,7 @@ import { validationSchema } from './config/validation.schema';
       load: [configuration],
       validationSchema,
     }),
+    CacheModule,
     RepositoriesModule,
   ],
   controllers: [AppController],
