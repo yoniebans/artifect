@@ -51,31 +51,39 @@ async function seedStateTransitions(states: ArtifactState[]): Promise<any[]> {
   // First, clear existing transitions to avoid conflicts
   await prisma.stateTransition.deleteMany({});
 
-  // Define the transitions based on state names
-  const toDoState = states.find((s: ArtifactState) => s.name === 'To Do');
-  const inProgressState = states.find((s: ArtifactState) => s.name === 'In Progress');
-  const approvedState = states.find((s: ArtifactState) => s.name === 'Approved');
+  // Define the transitions based on state IDs
+  // This assumes the states are created in the order: To Do (1), In Progress (2), Approved (3)
+  const toDoState = states.find(s => s.name === 'To Do');
+  const inProgressState = states.find(s => s.name === 'In Progress');
+  const approvedState = states.find(s => s.name === 'Approved');
 
   if (!toDoState || !inProgressState || !approvedState) {
     throw new Error('One or more required states not found');
   }
 
+  console.log('State IDs:', {
+    'To Do': toDoState.id,
+    'In Progress': inProgressState.id,
+    'Approved': approvedState.id
+  });
+
   const transitions = [
     { fromStateId: toDoState.id, toStateId: inProgressState.id },
     { fromStateId: inProgressState.id, toStateId: approvedState.id },
-    { fromStateId: approvedState.id, toStateId: inProgressState.id },
+    { fromStateId: approvedState.id, toStateId: inProgressState.id }
   ];
 
   // Create transitions
   const createdTransitions = [];
   for (const transition of transitions) {
+    console.log(`Creating transition: from ${transition.fromStateId} to ${transition.toStateId}`);
     const createdTransition = await prisma.stateTransition.create({
       data: transition
     });
     createdTransitions.push(createdTransition);
   }
 
-  console.log('State transitions seeded');
+  console.log('State transitions seeded:', createdTransitions.length);
   return createdTransitions;
 }
 
