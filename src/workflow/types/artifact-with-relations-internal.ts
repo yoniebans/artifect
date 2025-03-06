@@ -12,6 +12,9 @@ export interface ArtifactWithRelationsInternal extends Artifact {
     artifact_type?: {
         id: number;
         name: string;
+        slug: string;
+        syntax: string;
+        lifecyclePhaseId: number;
         lifecyclePhase?: {
             id: number;
             name: string;

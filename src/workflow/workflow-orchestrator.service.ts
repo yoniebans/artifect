@@ -16,7 +16,7 @@ import {
   ArtifactItem,
   StateTransition
 } from './interfaces/workflow-orchestrator.interface';
-import { ArtifactWithRelations } from 'src/context/types/artifact-with-relations';
+import { ArtifactWithRelations } from '../context/types/artifact-with-relations';
 import { ArtifactWithRelationsInternal } from './types/artifact-with-relations-internal';
 
 /**
@@ -227,15 +227,21 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     const artifact = await this.artifactRepository.findById(artifactId);
     if (!artifact) return null;
 
+    // Load artifact type with dependencies
     const artifactType = await this.loadTypeWithDependencies(artifact.artifactTypeId);
+
+    // Load state
     const state = await this.artifactRepository.getArtifactState(artifact.stateId);
+
+    // Load project
+    const project = await this.projectRepository.findById(artifact.projectId);
 
     // Create an ArtifactWithRelationsInternal object with our internal schema
     return {
       ...artifact,
       artifact_type: artifactType,
       state,
-      project: await this.projectRepository.findById(artifact.projectId)
+      project
     } as ArtifactWithRelationsInternal;
   }
 
