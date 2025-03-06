@@ -10,6 +10,18 @@ import { ContextManagerService } from '../context/context-manager.service';
 import { AIAssistantService } from '../ai/ai-assistant.service';
 
 describe('WorkflowOrchestratorService', () => {
+    // Save original environment
+    const originalEnv = process.env.NODE_ENV;
+
+    beforeAll(() => {
+        // Set environment to test
+        process.env.NODE_ENV = 'test';
+    });
+
+    afterAll(() => {
+        // Restore original environment
+        process.env.NODE_ENV = originalEnv;
+    });
     let service: WorkflowOrchestratorService;
     let projectRepository: ProjectRepository;
     let artifactRepository: ArtifactRepository;
@@ -80,6 +92,8 @@ describe('WorkflowOrchestratorService', () => {
     };
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 WorkflowOrchestratorService,
@@ -118,8 +132,8 @@ describe('WorkflowOrchestratorService', () => {
                         getArtifactType: jest.fn(),
                         getArtifactStates: jest.fn(),
                         getArtifactState: jest.fn(),
-                        getLifecyclePhases: jest.fn(),
-                        getArtifactTypeDependencies: jest.fn(),
+                        getLifecyclePhases: jest.fn().mockResolvedValue([{ id: 1, name: 'Requirements' }]),
+                        getArtifactTypeDependencies: jest.fn().mockResolvedValue([]),
                         isValidStateTransition: jest.fn(),
                         getArtifactsByType: jest.fn(),
                         createInteraction: jest.fn(),
@@ -232,6 +246,8 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(artifactRepository, 'getAvailableTransitions').mockResolvedValue([
                 { id: 3, name: 'Approved' },
             ]);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'findById').mockResolvedValue(mockArtifact);
 
             // Execute
             const result = await service.viewProject(1);
@@ -267,6 +283,9 @@ describe('WorkflowOrchestratorService', () => {
                 [mockInteraction],
                 2,
             ]);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'getArtifactState').mockResolvedValue(mockArtifactState);
+            jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
 
             // Execute
             const result = await service.getArtifactDetails(1);
@@ -297,9 +316,15 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(artifactRepository, 'getArtifactsByProjectIdAndPhase').mockResolvedValue([]);
             jest.spyOn(artifactRepository, 'create').mockResolvedValue(mockArtifact);
             jest.spyOn(artifactRepository, 'findById').mockResolvedValue(mockArtifact);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'getArtifactState').mockResolvedValue(mockArtifactState);
             jest.spyOn(contextManager, 'getContext').mockResolvedValue({
                 project: { name: 'Test Project' },
-                artifact: { artifact_type_name: 'Vision Document', artifact_phase: 'Requirements' },
+                artifact: {
+                    artifact_type_id: 1,
+                    artifact_type_name: 'Vision Document',
+                    artifact_phase: 'Requirements'
+                },
                 is_update: false,
             });
             jest.spyOn(aiAssistant, 'kickoffArtifactInteraction').mockResolvedValue({
@@ -354,6 +379,15 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
             jest.spyOn(artifactRepository, 'getArtifactTypeByName').mockResolvedValue(mockArtifactType);
             jest.spyOn(artifactRepository, 'getArtifactsByProjectIdAndPhase').mockResolvedValue([mockArtifact]);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockImplementation((typeId) =>
+                Promise.resolve({
+                    id: typeId,
+                    name: 'Vision Document',
+                    slug: 'vision',
+                    syntax: 'markdown',
+                    lifecyclePhaseId: 1,
+                })
+            );
 
             // Execute & Verify
             await expect(service.createArtifact(1, 'Vision Document')).rejects.toThrow('Project already has an artifact');
@@ -369,9 +403,13 @@ describe('WorkflowOrchestratorService', () => {
                 2,
             ]);
             jest.spyOn(artifactRepository, 'createInteraction').mockResolvedValue(mockInteraction);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'getArtifactState').mockResolvedValue(mockArtifactState);
+            jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
             jest.spyOn(contextManager, 'getContext').mockResolvedValue({
                 project: { name: 'Test Project' },
                 artifact: {
+                    artifact_type_id: 1,
                     artifact_type_name: 'Vision Document',
                     artifact_phase: 'Requirements',
                     content: 'Current content',
@@ -457,6 +495,9 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(artifactRepository, 'getAvailableTransitions').mockResolvedValue([
                 { id: 3, name: 'Approved' },
             ]);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'getArtifactState').mockResolvedValue(mockArtifactState);
+            jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
 
             // Execute
             const result = await service.transitionArtifact(1, 3);
@@ -481,6 +522,9 @@ describe('WorkflowOrchestratorService', () => {
             // Setup
             jest.spyOn(artifactRepository, 'findById').mockResolvedValue(mockArtifact);
             jest.spyOn(artifactRepository, 'updateArtifactStateWithId').mockResolvedValue(null);
+            jest.spyOn(artifactRepository, 'getArtifactType').mockResolvedValue(mockArtifactType);
+            jest.spyOn(artifactRepository, 'getArtifactState').mockResolvedValue(mockArtifactState);
+            jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
 
             // Execute & Verify
             await expect(service.transitionArtifact(1, 999)).rejects.toThrow('Failed to update artifact state');
