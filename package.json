@@ -23,6 +23,7 @@
     "test:app": "jest src/app --runInBand",
     "test:repositories": "jest src/repositories --runInBand",
     "test:ai": "jest src/ai --runInBand",
+    "test:workflow": "jest src/workflow --runInBand",
     "test:context": "jest src/context --runInBand",
     "test:integration": "jest \".*\\.integration\\.spec\\.ts$\" --runInBand",
     "test:all": "jest --runInBand",
