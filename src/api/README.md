@@ -155,25 +155,68 @@ The API documentation is available at `/api` when the application is running, po
 
 ## Testing
 
-The API Gateway includes integration tests that verify the correct functionality of all endpoints, including:
+The API Gateway includes a comprehensive test suite to ensure proper functionality and catch regressions.
+
+### Test Structure
+
+#### Unit Tests
+
+Unit tests are located alongside the components they test:
+
+- `src/api/controllers/*.spec.ts` - Controller tests
+- `src/api/services/*.spec.ts` - Service tests
+- `src/api/filters/*.spec.ts` - Filter tests
+- `src/api/interceptors/*.spec.ts` - Interceptor tests
+- `src/api/dto/*.spec.ts` - DTO validation tests
+
+#### Integration Tests
+
+Integration tests are in a separate directory:
+
+- `test/api/*.integration.spec.ts` - API integration tests
+- `test/api/streaming.integration.spec.ts` - Streaming API integration tests
+
+### Running Tests
+
+```bash
+# Run all API unit tests
+npm run test src/api
+
+# Run all API integration tests
+npm run test test/api
+
+# Run specific test file
+npm run test src/api/controllers/health.controller.spec.ts
+
+# Run all tests
+npm run test
+```
+
+### Test Coverage
+
+The tests verify:
 
 - Request validation
 - Response format and content
 - Error handling
 - Authorization (when implemented)
 - Streaming functionality
+- Edge cases and error scenarios
 
-Run the tests with:
+### Testing Strategies
 
-```bash
-npm run test:integration
-```
+- **Controller Tests**: Mock dependencies to isolate controller functionality
+- **Service Tests**: Test actual service implementation with mocked external dependencies
+- **Integration Tests**: Use full application with database cleaning between tests
+- **SSE Testing**: Special handling for Server-Sent Events streaming responses
 
-Or run specific API tests:
+### Best Practices
 
-```bash
-npm test -- api.integration.spec.ts
-```
+1. **Isolation**: Each test should be isolated and not depend on state from other tests
+2. **Mocking**: Mock external dependencies, not the system under test
+3. **Coverage**: Aim for high test coverage, especially for edge cases and error handling
+4. **Readability**: Use descriptive test names and organize tests logically
+5. **Performance**: Keep tests fast to encourage frequent running
 
 ## Cross-Origin Resource Sharing (CORS)
 
