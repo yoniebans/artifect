@@ -133,6 +133,24 @@ export interface WorkflowOrchestratorInterface {
     ): Promise<ArtifactDetails>;
 
     /**
+     * Stream interaction with an artifact using AI
+     * 
+     * @param artifactId Artifact ID
+     * @param userMessage User message
+     * @param onChunk Callback for each chunk of the streaming response
+     * @param providerId Optional AI provider ID
+     * @param model Optional AI model name
+     * @returns Object containing the artifact content and commentary
+     */
+    streamInteractArtifact(
+        artifactId: number,
+        userMessage: string,
+        onChunk: (chunk: string) => void,
+        providerId?: string,
+        model?: string
+    ): Promise<{ artifactContent: string; commentary: string }>;
+
+    /**
      * Update an artifact's properties
      * 
      * @param artifactId Artifact ID

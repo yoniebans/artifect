@@ -9,6 +9,9 @@ import { RepositoriesModule } from './repositories/repositories.module';
 import { CacheModule } from './services/cache/cache.module';
 import { TemplatesModule } from './templates/templates.module';
 import { AIModule } from './ai/ai.module';
+import { ContextManagerModule } from './context/context-manager.module';
+import { WorkflowOrchestratorModule } from './workflow/workflow-orchestrator.module';
+import { ApiModule } from './api/api.module';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation.schema';
 import aiConfiguration from './ai/ai.config';
@@ -24,6 +27,9 @@ import aiConfiguration from './ai/ai.config';
     RepositoriesModule,
     TemplatesModule,
     AIModule,
+    ContextManagerModule,
+    WorkflowOrchestratorModule,
+    ApiModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

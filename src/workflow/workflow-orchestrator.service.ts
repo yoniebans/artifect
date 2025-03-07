@@ -582,6 +582,108 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
   }
 
   /**
+ * Stream interaction with an artifact using AI
+ * 
+ * @param artifactId Artifact ID
+ * @param userMessage User message
+ * @param onChunk Callback for each chunk of the streaming response
+ * @param providerId Optional AI provider ID
+ * @param model Optional AI model name
+ * @returns Object containing the artifact content and commentary
+ * @throws NotFoundException if artifact not found
+ */
+  async streamInteractArtifact(
+    artifactId: number,
+    userMessage: string,
+    onChunk: (chunk: string) => void,
+    providerId?: string,
+    model?: string
+  ): Promise<{ artifactContent: string; commentary: string }> {
+    // Load artifact with all its relations
+    const artifact = await this.loadArtifactWithRelations(artifactId);
+    if (!artifact) {
+      throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+    }
+
+    // Get recent interactions for context
+    const [lastInteractions, nextSequence] = await this.artifactRepository.getLastInteractions(artifactId, 3);
+
+    // Create user interaction
+    await this.artifactRepository.createInteraction({
+      artifactId,
+      versionId: artifact.currentVersionId || undefined,
+      role: 'user',
+      content: userMessage,
+      sequenceNumber: nextSequence,
+    });
+
+    // Build context
+    const context = await this.contextManager.getContext(
+      this.convertToContextArtifact(artifact),
+      true,
+      userMessage
+    );
+
+    try {
+      // Generate streaming response from AI
+      const aiOutput = await this.aiAssistant.generateStreamingArtifact(
+        context,
+        true,
+        userMessage,
+        onChunk,
+        providerId,
+        model,
+        // Convert to AIMessage format - reverse to get chronological order
+        [...lastInteractions].reverse().map(interaction => ({
+          role: interaction.role,
+          content: interaction.content,
+        }))
+      );
+
+      // Track current version
+      let currentVersion = artifact.currentVersion;
+
+      // If content was generated, create new version
+      if (aiOutput.artifactContent && aiOutput.artifactContent.trim()) {
+        currentVersion = await this.artifactRepository.createArtifactVersion(
+          artifactId,
+          aiOutput.artifactContent
+        );
+      }
+
+      // Create AI interaction record if there was commentary
+      if (aiOutput.commentary && aiOutput.commentary.trim()) {
+        await this.artifactRepository.createInteraction({
+          artifactId,
+          versionId: currentVersion?.id,
+          role: 'assistant',
+          content: aiOutput.commentary,
+          sequenceNumber: nextSequence + 1,
+        });
+      }
+
+      // If artifact is not in "In Progress" state, update it
+      if (artifact.state?.name !== 'In Progress') {
+        await this.artifactRepository.updateArtifactState(artifactId, 'In Progress');
+      }
+
+      return {
+        artifactContent: aiOutput.artifactContent || '',
+        commentary: aiOutput.commentary || ''
+      };
+    } catch (error) {
+      this.logger.error(`Streaming error: ${error.message}`);
+
+      // Handle specific errors from AI providers
+      if (error.message.includes('does not support streaming')) {
+        throw new Error('The selected AI provider does not support streaming');
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Update an artifact's properties
    * 
    * @param artifactId Artifact ID
