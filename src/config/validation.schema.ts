@@ -9,7 +9,4 @@ export const validationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().default(3000),
   DATABASE_URL: Joi.string().required(),
-
-  // Include AI configuration validation
-  ...aiConfigValidationSchema.describe().keys
-});
+}).concat(aiConfigValidationSchema); // Use concat instead of spreading describe().keys
