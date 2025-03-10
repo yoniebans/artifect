@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ProjectController } from './project.controller';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
-import { ProjectCreateDto, ProjectSummaryDto, ProjectDto } from '../dto';
+import { ProjectCreateDto } from '../dto';
 
 describe('ProjectController', () => {
     let controller: ProjectController;
@@ -40,14 +40,15 @@ describe('ProjectController', () => {
     describe('createProject', () => {
         it('should create a new project', async () => {
             const projectCreateDto: ProjectCreateDto = { name: 'Test Project' };
-            const expectedProject: ProjectSummaryDto = {
+            const expectedProject = {
                 project_id: '1',
                 name: 'Test Project',
                 created_at: new Date(),
-                updated_at: null,
+                updated_at: undefined,
             };
 
-            jest.spyOn(workflowOrchestrator, 'createProject').mockResolvedValue(expectedProject);
+            // Use type assertion for mock implementation
+            jest.spyOn(workflowOrchestrator, 'createProject').mockResolvedValue(expectedProject as any);
 
             const result = await controller.createProject(projectCreateDto);
 
@@ -58,22 +59,23 @@ describe('ProjectController', () => {
 
     describe('listProjects', () => {
         it('should return a list of projects', async () => {
-            const expectedProjects: ProjectSummaryDto[] = [
+            const expectedProjects = [
                 {
                     project_id: '1',
                     name: 'Project 1',
                     created_at: new Date(),
-                    updated_at: null,
+                    updated_at: undefined,
                 },
                 {
                     project_id: '2',
                     name: 'Project 2',
                     created_at: new Date(),
-                    updated_at: null,
+                    updated_at: undefined,
                 },
             ];
 
-            jest.spyOn(workflowOrchestrator, 'listProjects').mockResolvedValue(expectedProjects);
+            // Use type assertion for mock implementation
+            jest.spyOn(workflowOrchestrator, 'listProjects').mockResolvedValue(expectedProjects as any);
 
             const result = await controller.listProjects();
 
@@ -89,7 +91,7 @@ describe('ProjectController', () => {
                 project_id: projectId,
                 name: 'Test Project',
                 created_at: new Date(),
-                updated_at: null,
+                updated_at: undefined,
                 artifacts: {
                     'Requirements': [
                         {
@@ -107,7 +109,7 @@ describe('ProjectController', () => {
                                     state_name: 'Approved',
                                 },
                             ],
-                            dependent_type_id: null,
+                            dependent_type_id: undefined,
                             phase_id: '1',
                             order: '1',
                         },
@@ -115,7 +117,8 @@ describe('ProjectController', () => {
                 },
             };
 
-            jest.spyOn(workflowOrchestrator, 'viewProject').mockResolvedValue(mockProjectData);
+            // Use type assertion for mock implementation
+            jest.spyOn(workflowOrchestrator, 'viewProject').mockResolvedValue(mockProjectData as any);
 
             const result = await controller.viewProject(projectId);
 

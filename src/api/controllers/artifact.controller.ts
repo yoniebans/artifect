@@ -55,7 +55,7 @@ export class ArtifactController {
                 aiModel
             );
 
-            return result;
+            return result as ArtifactEditorResponseDto;
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -78,15 +78,16 @@ export class ArtifactController {
         @Body() updateData: ArtifactUpdateDto
     ): Promise<ArtifactEditorResponseDto> {
         try {
+            // Pass empty string instead of undefined for name/content if they're not provided
             const updatedArtifact = await this.workflowOrchestrator.updateArtifact(
                 Number(artifactId),
-                updateData.name,
-                updateData.content
+                updateData.name || "", // Use empty string if name is undefined
+                updateData.content || "" // Use empty string if content is undefined
             );
 
             // Since the workflow orchestrator returns just the artifact, we need to
             // get the full artifact details with chat history
-            return this.workflowOrchestrator.getArtifactDetails(Number(artifactId));
+            return this.workflowOrchestrator.getArtifactDetails(Number(artifactId)) as Promise<ArtifactEditorResponseDto>;
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -107,7 +108,7 @@ export class ArtifactController {
         @Param('artifact_id') artifactId: string
     ): Promise<ArtifactEditorResponseDto> {
         try {
-            return await this.workflowOrchestrator.getArtifactDetails(Number(artifactId));
+            return await this.workflowOrchestrator.getArtifactDetails(Number(artifactId)) as ArtifactEditorResponseDto;
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -139,7 +140,7 @@ export class ArtifactController {
                 updateRequest.messages[0].content,
                 aiProvider,
                 aiModel
-            );
+            ) as ArtifactEditorResponseDto;
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -165,7 +166,7 @@ export class ArtifactController {
             return await this.workflowOrchestrator.transitionArtifact(
                 Number(artifactId),
                 Number(stateId)
-            );
+            ) as ArtifactEditorResponseDto;
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);

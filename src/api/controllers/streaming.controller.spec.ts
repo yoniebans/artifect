@@ -1,5 +1,3 @@
-// src/api/controllers/streaming.controller.spec.ts
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
@@ -79,7 +77,7 @@ describe('StreamingController', () => {
             expect(sseService.createSSEStream).toHaveBeenCalled();
 
             // Wait for the async process to complete
-            await new Promise(process.nextTick);
+            await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(workflowOrchestrator.streamInteractArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
@@ -101,41 +99,39 @@ describe('StreamingController', () => {
                 ],
             };
 
-            jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
-                new Error('Artifact with id 999 not found')
-            );
-
-            // Need to mock implementation of Controller method to capture exception
-            jest.spyOn(controller as any, 'startStreamingProcess').mockImplementation(async () => {
+            // Instead of mocking startStreamingProcess, let's directly implement and test it
+            // Create a modified implementation that we can test
+            const testStartStreamingProcess = async () => {
                 try {
-                    await workflowOrchestrator.streamInteractArtifact(
+                    // Mock the workflow orchestrator to throw an error
+                    jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
+                        new Error('Artifact with id 999 not found')
+                    );
+
+                    // Call the real method - but with our mock in place
+                    await controller['startStreamingProcess'](
                         Number(artifactId),
                         updateRequest.messages[0].content,
-                        jest.fn(),
-                        undefined,
-                        undefined
+                        mockSubject
                     );
+
+                    // This should not be reached due to error
+                    fail('Expected an error to be thrown');
                 } catch (error) {
+                    // Verify error handling behavior
                     expect(sseService.sendToStream).toHaveBeenCalledWith(
                         mockSubject,
                         expect.objectContaining({
                             chunk: expect.stringContaining('not found'),
-                            done: true,
+                            done: true
                         })
                     );
                     expect(sseService.completeStream).toHaveBeenCalled();
-                    throw new NotFoundException(error.message);
+                    expect(error).toBeInstanceOf(NotFoundException);
                 }
-            });
+            };
 
-            controller.streamArtifactInteraction(artifactId, updateRequest);
-
-            // Wait for the async process to complete
-            await expect(controller['startStreamingProcess'](
-                Number(artifactId),
-                updateRequest.messages[0].content,
-                mockSubject
-            )).rejects.toThrow(NotFoundException);
+            await testStartStreamingProcess();
         });
 
         it('should handle streaming not supported error', async () => {
@@ -149,41 +145,38 @@ describe('StreamingController', () => {
                 ],
             };
 
-            jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
-                new Error('The selected AI provider does not support streaming')
-            );
-
-            // Need to mock implementation of Controller method to capture exception
-            jest.spyOn(controller as any, 'startStreamingProcess').mockImplementation(async () => {
+            // Create a test function to verify error handling
+            const testStreamingNotSupported = async () => {
                 try {
-                    await workflowOrchestrator.streamInteractArtifact(
+                    // Mock the workflow orchestrator to throw an error
+                    jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
+                        new Error('The selected AI provider does not support streaming')
+                    );
+
+                    // Call the method with our mock in place
+                    await controller['startStreamingProcess'](
                         Number(artifactId),
                         updateRequest.messages[0].content,
-                        jest.fn(),
-                        undefined,
-                        undefined
+                        mockSubject
                     );
+
+                    // This should not be reached due to error
+                    fail('Expected an error to be thrown');
                 } catch (error) {
+                    // Verify error handling behavior
                     expect(sseService.sendToStream).toHaveBeenCalledWith(
                         mockSubject,
                         expect.objectContaining({
                             chunk: expect.stringContaining('does not support streaming'),
-                            done: true,
+                            done: true
                         })
                     );
                     expect(sseService.completeStream).toHaveBeenCalled();
-                    throw new BadRequestException(error.message);
+                    expect(error).toBeInstanceOf(BadRequestException);
                 }
-            });
+            };
 
-            controller.streamArtifactInteraction(artifactId, updateRequest);
-
-            // Wait for the async process to complete
-            await expect(controller['startStreamingProcess'](
-                Number(artifactId),
-                updateRequest.messages[0].content,
-                mockSubject
-            )).rejects.toThrow(BadRequestException);
+            await testStreamingNotSupported();
         });
     });
 });

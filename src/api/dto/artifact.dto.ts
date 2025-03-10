@@ -1,6 +1,6 @@
 // src/api/dto/artifact.dto.ts
 
-import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, ArrayNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -32,7 +32,8 @@ export class ArtifactCreateDto {
  */
 export class ArtifactDto {
     @IsString()
-    artifact_id: string;
+    @IsOptional()
+    artifact_id: string | null;  // Allow null values
 
     @IsString()
     artifact_type_id: string;
@@ -45,13 +46,15 @@ export class ArtifactDto {
 
     @IsOptional()
     @IsString()
-    dependent_type_id?: string;
+    dependent_type_id?: string | null;
 
     @IsString()
-    state_id: string;
+    @IsOptional()
+    state_id: string | null;  // Allow null values
 
     @IsString()
-    state_name: string;
+    @IsOptional()
+    state_name: string | null;  // Allow null values
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -65,11 +68,11 @@ export class ArtifactDto {
 export class ArtifactDetailDto extends ArtifactDto {
     @IsOptional()
     @IsString()
-    artifact_version_number?: string;
+    artifact_version_number?: string | null;
 
     @IsOptional()
     @IsString()
-    artifact_version_content?: string;
+    artifact_version_content?: string | null;
 }
 
 /**
@@ -131,6 +134,7 @@ export class MessageDto {
  */
 export class ArtifactUpdateAIRequestDto {
     @IsArray()
+    @ArrayNotEmpty()
     @ValidateNested({ each: true })
     @Type(() => MessageDto)
     messages: MessageDto[];

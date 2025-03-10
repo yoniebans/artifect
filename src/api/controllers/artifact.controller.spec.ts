@@ -7,15 +7,14 @@ import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrato
 import {
     ArtifactCreateDto,
     ArtifactUpdateDto,
-    ArtifactUpdateAIRequestDto,
-    ArtifactEditorResponseDto
+    ArtifactUpdateAIRequestDto
 } from '../dto';
 
 describe('ArtifactController', () => {
     let controller: ArtifactController;
     let workflowOrchestrator: WorkflowOrchestratorService;
 
-    const mockArtifactResponse: ArtifactEditorResponseDto = {
+    const mockArtifactResponse = {
         artifact: {
             artifact_id: '1',
             artifact_type_id: '1',
@@ -31,7 +30,7 @@ describe('ArtifactController', () => {
                     state_name: 'Approved',
                 },
             ],
-            dependent_type_id: null,
+            dependent_type_id: undefined,  // Changed null to undefined
         },
         chat_completion: {
             messages: [
@@ -79,7 +78,8 @@ describe('ArtifactController', () => {
                 artifact_type_name: 'Vision Document',
             };
 
-            jest.spyOn(workflowOrchestrator, 'createArtifact').mockResolvedValue(mockArtifactResponse);
+            // Use type assertion to handle differences between interfaces
+            jest.spyOn(workflowOrchestrator, 'createArtifact').mockResolvedValue(mockArtifactResponse as any);
 
             const result = await controller.createArtifact(artifactCreateDto, 'anthropic', 'claude-3');
 
@@ -127,8 +127,12 @@ describe('ArtifactController', () => {
                 content: 'Updated content',
             };
 
-            jest.spyOn(workflowOrchestrator, 'updateArtifact').mockResolvedValue(mockArtifactResponse.artifact);
-            jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse);
+            // Mock the basic artifact update first
+            const mockUpdatedArtifact = { id: 1, name: 'Updated Artifact' };
+            jest.spyOn(workflowOrchestrator, 'updateArtifact').mockResolvedValue(mockUpdatedArtifact as any);
+            
+            // Then separately mock getting the full details
+            jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse as any);
 
             const result = await controller.updateArtifact(artifactId, updateDto);
 
@@ -146,7 +150,8 @@ describe('ArtifactController', () => {
         it('should return an artifact by ID', async () => {
             const artifactId = '1';
 
-            jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse);
+            // Mock the getArtifactDetails method
+            jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse as any);
 
             const result = await controller.viewArtifact(artifactId);
 
@@ -177,7 +182,8 @@ describe('ArtifactController', () => {
                 ],
             };
 
-            jest.spyOn(workflowOrchestrator, 'interactArtifact').mockResolvedValue(mockArtifactResponse);
+            // Mock the interactArtifact method
+            jest.spyOn(workflowOrchestrator, 'interactArtifact').mockResolvedValue(mockArtifactResponse as any);
 
             const result = await controller.interactArtifact(
                 artifactId,
@@ -201,7 +207,8 @@ describe('ArtifactController', () => {
             const artifactId = '1';
             const stateId = '2';
 
-            jest.spyOn(workflowOrchestrator, 'transitionArtifact').mockResolvedValue(mockArtifactResponse);
+            // Mock the transitionArtifact method
+            jest.spyOn(workflowOrchestrator, 'transitionArtifact').mockResolvedValue(mockArtifactResponse as any);
 
             const result = await controller.updateArtifactState(artifactId, stateId);
 

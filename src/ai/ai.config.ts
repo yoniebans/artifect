@@ -12,18 +12,18 @@ export const aiConfigValidationSchema = Joi.object({
     // OpenAI configuration
     OPENAI_API_KEY: Joi.string().when('DEFAULT_AI_PROVIDER', {
         is: 'openai',
-        then: Joi.required(),
-        otherwise: Joi.optional()
+        then: Joi.string().required(),
+        otherwise: Joi.string().optional()
     }),
     OPENAI_DEFAULT_MODEL: Joi.string().default('gpt-4'),
     OPENAI_BASE_URL: Joi.string().default('https://api.openai.com/v1'),
     OPENAI_ORGANIZATION_ID: Joi.string().optional(),
 
     // Anthropic configuration
-    ANTHROPIC_API_KEY: Joi.when('DEFAULT_AI_PROVIDER', {
+    ANTHROPIC_API_KEY: Joi.string().when('DEFAULT_AI_PROVIDER', {
         is: 'anthropic',
-        then: Joi.required(),
-        otherwise: Joi.optional()
+        then: Joi.string().required(),
+        otherwise: Joi.string().optional()
     }),
     ANTHROPIC_DEFAULT_MODEL: Joi.string().default('claude-3-opus-20240229'),
     ANTHROPIC_BASE_URL: Joi.string().default('https://api.anthropic.com'),

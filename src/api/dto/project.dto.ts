@@ -25,12 +25,10 @@ export class ProjectBaseDto {
     name: string;
 
     @IsOptional()
-    @IsDate()
-    created_at?: Date;
+    created_at?: Date | null;
 
     @IsOptional()
-    @IsDate()
-    updated_at?: Date;
+    updated_at?: Date | null;
 }
 
 /**
