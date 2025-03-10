@@ -14,22 +14,22 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:db": "jest src/database --runInBand",
-    "test:config": "jest src/config --runInBand",
-    "test:app": "jest src/app --runInBand",
-    "test:repositories": "jest src/repositories --runInBand",
-    "test:ai": "jest src/ai --runInBand",
-    "test:workflow": "jest src/workflow --runInBand",
-    "test:context": "jest src/context --runInBand",
+    "test": "jest --config=jest.config.js",
+    "test:watch": "jest --watch --config=jest.config.js",
+    "test:cov": "jest --coverage --config=jest.config.js",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand --config=jest.config.js",
+    "test:db": "jest src/database --runInBand --config=jest.config.js",
+    "test:config": "jest src/config --runInBand --config=jest.config.js",
+    "test:app": "jest src/app --runInBand --config=jest.config.js",
+    "test:repositories": "jest src/repositories --runInBand --config=jest.config.js",
+    "test:ai": "jest src/ai --runInBand --config=jest.config.js",
+    "test:workflow": "jest src/workflow --runInBand --config=jest.config.js",
+    "test:context": "jest src/context --runInBand --config=jest.config.js",
     "test:api": "jest src/api --runInBand --config=jest.config.js",
-    "test:integration": "jest \".*\\.integration\\.spec\\.ts$\" --runInBand",
-    "test:all": "jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
-    "test:repositories:e2e": "jest --config ./test/jest-e2e.json \"repositories.*\\.e2e-spec\\.ts$\" --runInBand",
+    "test:integration": "jest \".*\\.integration\\.spec\\.ts$\" --runInBand --config=jest.config.js",
+    "test:all": "jest --runInBand --config=jest.config.js",
+    "test:e2e": "jest --config=./test/jest-e2e.json --runInBand",
+    "test:repositories:e2e": "jest --config=./test/jest-e2e.json \"repositories.*\\.e2e-spec\\.ts$\" --runInBand",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
@@ -75,22 +75,5 @@
     "ts-node": "^10.0.0",
     "tsconfig-paths": "4.2.0",
     "typescript": "^4.7.4"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
   }
 }

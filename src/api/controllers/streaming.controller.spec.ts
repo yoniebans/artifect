@@ -1,5 +1,6 @@
+// src/api/controllers/streaming.controller.spec.ts
+
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { StreamingController } from './streaming.controller';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
@@ -12,10 +13,23 @@ describe('StreamingController', () => {
     let sseService: SSEService;
     let mockSubject: Subject<StreamingChunkDto>;
     let mockObservable: Observable<StreamingChunkDto>;
+    // Create properly typed mock functions
+    let mockStreamInteractArtifact: jest.Mock;
+    let mockSendToStream: jest.Mock;
+    let mockCompleteStream: jest.Mock;
 
     beforeEach(async () => {
         mockSubject = new Subject<StreamingChunkDto>();
         mockObservable = mockSubject.asObservable();
+        
+        // Initialize the mocks with proper Jest typing
+        mockStreamInteractArtifact = jest.fn().mockResolvedValue({
+            artifactContent: 'Final content',
+            commentary: 'Final commentary',
+        });
+
+        mockSendToStream = jest.fn();
+        mockCompleteStream = jest.fn();
 
         const module: TestingModule = await Test.createTestingModule({
             controllers: [StreamingController],
@@ -23,18 +37,15 @@ describe('StreamingController', () => {
                 {
                     provide: WorkflowOrchestratorService,
                     useValue: {
-                        streamInteractArtifact: jest.fn().mockResolvedValue({
-                            artifactContent: 'Final content',
-                            commentary: 'Final commentary',
-                        }),
+                        streamInteractArtifact: mockStreamInteractArtifact,
                     },
                 },
                 {
                     provide: SSEService,
                     useValue: {
                         createSSEStream: jest.fn().mockReturnValue([mockObservable, mockSubject]),
-                        sendToStream: jest.fn(),
-                        completeStream: jest.fn(),
+                        sendToStream: mockSendToStream,
+                        completeStream: mockCompleteStream,
                     },
                 },
             ],
@@ -77,9 +88,9 @@ describe('StreamingController', () => {
             expect(sseService.createSSEStream).toHaveBeenCalled();
 
             // Wait for the async process to complete
-            await new Promise(resolve => setTimeout(resolve, 0));
+            await new Promise(resolve => setTimeout(resolve, 10));
 
-            expect(workflowOrchestrator.streamInteractArtifact).toHaveBeenCalledWith(
+            expect(mockStreamInteractArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
                 updateRequest.messages[0].content,
                 expect.any(Function),
@@ -99,39 +110,38 @@ describe('StreamingController', () => {
                 ],
             };
 
-            // Instead of mocking startStreamingProcess, let's directly implement and test it
-            // Create a modified implementation that we can test
-            const testStartStreamingProcess = async () => {
-                try {
-                    // Mock the workflow orchestrator to throw an error
-                    jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
-                        new Error('Artifact with id 999 not found')
-                    );
+            // Now we can correctly use mockRejectedValueOnce
+            mockStreamInteractArtifact.mockRejectedValueOnce(
+                new Error('Artifact with id 999 not found')
+            );
 
-                    // Call the real method - but with our mock in place
-                    await controller['startStreamingProcess'](
-                        Number(artifactId),
-                        updateRequest.messages[0].content,
-                        mockSubject
-                    );
+            // Call the method
+            controller.streamArtifactInteraction(
+                artifactId,
+                updateRequest
+            );
 
-                    // This should not be reached due to error
-                    fail('Expected an error to be thrown');
-                } catch (error) {
-                    // Verify error handling behavior
-                    expect(sseService.sendToStream).toHaveBeenCalledWith(
-                        mockSubject,
-                        expect.objectContaining({
-                            chunk: expect.stringContaining('not found'),
-                            done: true
-                        })
-                    );
-                    expect(sseService.completeStream).toHaveBeenCalled();
-                    expect(error).toBeInstanceOf(NotFoundException);
-                }
-            };
+            // Wait for the async process to complete
+            await new Promise(resolve => setTimeout(resolve, 10));
 
-            await testStartStreamingProcess();
+            // Verify the interaction with the mock
+            expect(mockStreamInteractArtifact).toHaveBeenCalledWith(
+                Number(artifactId),
+                updateRequest.messages[0].content,
+                expect.any(Function),
+                undefined,
+                undefined
+            );
+
+            // Verify error handling
+            expect(mockSendToStream).toHaveBeenCalledWith(
+                mockSubject,
+                expect.objectContaining({
+                    chunk: expect.stringContaining('not found'),
+                    done: true
+                })
+            );
+            expect(mockCompleteStream).toHaveBeenCalledWith(mockSubject);
         });
 
         it('should handle streaming not supported error', async () => {
@@ -145,38 +155,38 @@ describe('StreamingController', () => {
                 ],
             };
 
-            // Create a test function to verify error handling
-            const testStreamingNotSupported = async () => {
-                try {
-                    // Mock the workflow orchestrator to throw an error
-                    jest.spyOn(workflowOrchestrator, 'streamInteractArtifact').mockRejectedValue(
-                        new Error('The selected AI provider does not support streaming')
-                    );
+            // Use our properly typed mock function
+            mockStreamInteractArtifact.mockRejectedValueOnce(
+                new Error('The selected AI provider does not support streaming')
+            );
 
-                    // Call the method with our mock in place
-                    await controller['startStreamingProcess'](
-                        Number(artifactId),
-                        updateRequest.messages[0].content,
-                        mockSubject
-                    );
+            // Call the method
+            controller.streamArtifactInteraction(
+                artifactId,
+                updateRequest
+            );
 
-                    // This should not be reached due to error
-                    fail('Expected an error to be thrown');
-                } catch (error) {
-                    // Verify error handling behavior
-                    expect(sseService.sendToStream).toHaveBeenCalledWith(
-                        mockSubject,
-                        expect.objectContaining({
-                            chunk: expect.stringContaining('does not support streaming'),
-                            done: true
-                        })
-                    );
-                    expect(sseService.completeStream).toHaveBeenCalled();
-                    expect(error).toBeInstanceOf(BadRequestException);
-                }
-            };
+            // Wait for the async process to complete
+            await new Promise(resolve => setTimeout(resolve, 10));
 
-            await testStreamingNotSupported();
+            // Verify the interaction with the mock
+            expect(mockStreamInteractArtifact).toHaveBeenCalledWith(
+                Number(artifactId),
+                updateRequest.messages[0].content,
+                expect.any(Function),
+                undefined,
+                undefined
+            );
+
+            // Verify error handling
+            expect(mockSendToStream).toHaveBeenCalledWith(
+                mockSubject, 
+                expect.objectContaining({
+                    chunk: expect.stringContaining('does not support streaming'),
+                    done: true
+                })
+            );
+            expect(mockCompleteStream).toHaveBeenCalledWith(mockSubject);
         });
     });
 });

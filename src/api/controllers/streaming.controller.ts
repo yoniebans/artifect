@@ -46,73 +46,51 @@ export class StreamingController {
         const [observable, subject] = this.sseService.createSSEStream();
 
         // Start the streaming process asynchronously
-        this.startStreamingProcess(
-            Number(artifactId),
-            updateRequest.messages[0].content,
-            subject,
-            aiProvider,
-            aiModel
-        );
+        (async () => {
+            try {
+                const result = await this.workflowOrchestrator.streamInteractArtifact(
+                    Number(artifactId),
+                    updateRequest.messages[0].content,
+                    // Callback for handling chunks
+                    (chunk: string) => {
+                        this.sseService.sendToStream(subject, { chunk });
+                    },
+                    aiProvider,
+                    aiModel
+                );
 
-        return observable;
-    }
-
-    /**
-     * Process the streaming request asynchronously
-     * @param artifactId Artifact ID
-     * @param userMessage User message
-     * @param subject Subject to send streaming updates to
-     * @param providerId Optional AI provider ID
-     * @param model Optional AI model
-     */
-    private async startStreamingProcess(
-        artifactId: number,
-        userMessage: string,
-        subject: any,
-        providerId?: string,
-        model?: string
-    ): Promise<void> {
-        try {
-            await this.workflowOrchestrator.streamInteractArtifact(
-                artifactId,
-                userMessage,
-                // Callback for handling chunks
-                (chunk: string) => {
-                    this.sseService.sendToStream(subject, { chunk });
-                },
-                providerId,
-                model
-            ).then(result => {
                 // Send final message with complete content
                 this.sseService.completeStream(subject, {
                     artifact_content: result.artifactContent,
                     commentary: result.commentary
                 });
-            });
-        } catch (error) {
-            // Handle errors
-            if (error.message.includes('not found')) {
-                this.sseService.sendToStream(subject, {
-                    chunk: `Error: ${error.message}`,
-                    done: true
-                });
-                this.sseService.completeStream(subject);
-                throw new NotFoundException(error.message);
-            } else if (error.message.includes('does not support streaming')) {
-                this.sseService.sendToStream(subject, {
-                    chunk: `Error: ${error.message}`,
-                    done: true
-                });
-                this.sseService.completeStream(subject);
-                throw new BadRequestException(error.message);
-            } else {
-                this.sseService.sendToStream(subject, {
-                    chunk: `Error: ${error.message}`,
-                    done: true
-                });
-                this.sseService.completeStream(subject);
-                throw new BadRequestException(error.message);
+            } catch (error) {
+                // Handle errors by sending error message through the stream
+                if (error.message.includes('not found')) {
+                    this.sseService.sendToStream(subject, {
+                        chunk: `Error: ${error.message}`,
+                        done: true
+                    });
+                    this.sseService.completeStream(subject);
+                    // Note: We don't throw here anymore as the exception would be lost
+                } else if (error.message.includes('does not support streaming')) {
+                    this.sseService.sendToStream(subject, {
+                        chunk: `Error: ${error.message}`,
+                        done: true
+                    });
+                    this.sseService.completeStream(subject);
+                    // Note: We don't throw here anymore as the exception would be lost
+                } else {
+                    this.sseService.sendToStream(subject, {
+                        chunk: `Error: ${error.message}`,
+                        done: true
+                    });
+                    this.sseService.completeStream(subject);
+                    // Note: We don't throw here anymore as the exception would be lost
+                }
             }
-        }
+        })();
+
+        return observable;
     }
 }

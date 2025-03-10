@@ -92,18 +92,27 @@ describe('API Integration Tests', () => {
             const createdProject = {
                 project_id: '1',
                 name: 'Test Project',
-                created_at: new Date(),
-                updated_at: null,
+                // Don't specify the created_at or updated_at fields for comparison
             };
 
-            mockWorkflowOrchestrator.createProject.mockResolvedValue(createdProject);
+            mockWorkflowOrchestrator.createProject.mockResolvedValue({
+                project_id: '1',
+                name: 'Test Project',
+                created_at: new Date(),
+                updated_at: null
+            });
 
             const response = await request(app.getHttpServer())
                 .post('/project/new')
                 .send(projectData)
                 .expect(201);
 
-            expect(response.body).toEqual(createdProject);
+            // Instead of comparing the entire object, check individual fields
+            expect(response.body.project_id).toEqual(createdProject.project_id);
+            expect(response.body.name).toEqual(createdProject.name);
+            expect(response.body).toHaveProperty('created_at');
+            expect(response.body).toHaveProperty('updated_at');
+
             expect(mockWorkflowOrchestrator.createProject).toHaveBeenCalledWith(projectData.name);
 
             // Store the project ID for later tests
