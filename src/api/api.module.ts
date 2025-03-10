@@ -12,7 +12,7 @@ import {
 } from './controllers';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { SSEService } from './services/sse.service';
-
+import { AppService } from '../app.service';
 /**
  * Module for API Gateway
  */
@@ -33,6 +33,7 @@ import { SSEService } from './services/sse.service';
             useClass: LoggingInterceptor,
         },
         SSEService,
+        AppService,
     ],
 })
 export class ApiModule { }

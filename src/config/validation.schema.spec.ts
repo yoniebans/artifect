@@ -5,7 +5,10 @@ describe('Validation Schema', () => {
         const validConfig = {
             NODE_ENV: 'development',
             PORT: 3000,
-            DATABASE_URL: 'postgresql://user:password@localhost:5432/testdb',
+            DATABASE_URL: 'postgresql://user:password@localhost:5432/dbname',
+            // Add required API keys
+            ANTHROPIC_API_KEY: 'test-api-key',
+            DEFAULT_AI_PROVIDER: 'anthropic'
         };
 
         const { error } = validationSchema.validate(validConfig);
@@ -14,7 +17,9 @@ describe('Validation Schema', () => {
 
     it('should use default values when optional fields are missing', () => {
         const minimalConfig = {
-            DATABASE_URL: 'postgresql://user:password@localhost:5432/testdb',
+            DATABASE_URL: 'postgresql://user:password@localhost:5432/dbname',
+            // Add required API key for anthropic since it's the default provider
+            ANTHROPIC_API_KEY: 'test-api-key'
         };
 
         const { error, value } = validationSchema.validate(minimalConfig);
