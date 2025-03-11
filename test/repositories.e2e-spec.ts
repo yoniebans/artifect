@@ -56,132 +56,143 @@ describe('Repository E2E Tests', () => {
         reasoningRepository = app.get<ReasoningRepository>(ReasoningRepository);
 
         // Clean up any test data from previous runs
-        await cleanupPreviousTestData();
+        // await cleanupPreviousTestData();
     });
 
     afterAll(async () => {
-        // Clean up test data created in this test run
-        await cleanupTestData();
-        await app.close();
+        try {
+            // Only close the app, don't clean the database at the end of each test
+            if (app) {
+                await app.close();
+            }
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
     });
 
-    async function cleanupTestData() {
-        try {
-            // Only attempt to clean up if we have valid IDs
-            if (testArtifactId !== null) {
-                // Delete reasoning data first (due to foreign key constraints)
-                await prismaService.reasoningPoint.deleteMany({
-                    where: {
-                        summary: {
-                            artifactId: testArtifactId
-                        }
-                    }
-                });
+    // afterAll(async () => {
+    //     // Clean up test data created in this test run
+    //     await cleanupTestData();
+    //     await app.close();
+    // });
 
-                await prismaService.summaryVersion.deleteMany({
-                    where: {
-                        summary: {
-                            artifactId: testArtifactId
-                        }
-                    }
-                });
+    // async function cleanupTestData() {
+    //     try {
+    //         // Only attempt to clean up if we have valid IDs
+    //         if (testArtifactId !== null) {
+    //             // Delete reasoning data first (due to foreign key constraints)
+    //             await prismaService.reasoningPoint.deleteMany({
+    //                 where: {
+    //                     summary: {
+    //                         artifactId: testArtifactId
+    //                     }
+    //                 }
+    //             });
 
-                await prismaService.reasoningSummary.deleteMany({
-                    where: {
-                        artifactId: testArtifactId
-                    }
-                });
+    //             await prismaService.summaryVersion.deleteMany({
+    //                 where: {
+    //                     summary: {
+    //                         artifactId: testArtifactId
+    //                     }
+    //                 }
+    //             });
 
-                // Delete interactions and versions
-                await prismaService.artifactInteraction.deleteMany({
-                    where: { artifactId: testArtifactId },
-                });
+    //             await prismaService.reasoningSummary.deleteMany({
+    //                 where: {
+    //                     artifactId: testArtifactId
+    //                 }
+    //             });
 
-                await prismaService.artifactVersion.deleteMany({
-                    where: { artifactId: testArtifactId },
-                });
+    //             // Delete interactions and versions
+    //             await prismaService.artifactInteraction.deleteMany({
+    //                 where: { artifactId: testArtifactId },
+    //             });
 
-                // Finally delete the artifact
-                await prismaService.artifact.delete({
-                    where: { id: testArtifactId },
-                }).catch(e => console.log('Error deleting artifact:', e instanceof Error ? e.message : String(e)));
+    //             await prismaService.artifactVersion.deleteMany({
+    //                 where: { artifactId: testArtifactId },
+    //             });
 
-                testArtifactId = null;
-            }
+    //             // Finally delete the artifact
+    //             await prismaService.artifact.delete({
+    //                 where: { id: testArtifactId },
+    //             }).catch(e => console.log('Error deleting artifact:', e instanceof Error ? e.message : String(e)));
 
-            if (testProjectId !== null) {
-                await prismaService.project.delete({
-                    where: { id: testProjectId },
-                }).catch(e => console.log('Error deleting project:', e instanceof Error ? e.message : String(e)));
+    //             testArtifactId = null;
+    //         }
 
-                testProjectId = null;
-            }
-        } catch (error) {
-            console.log('Error during cleanup:', error instanceof Error ? error.message : String(error));
-        }
-    }
+    //         if (testProjectId !== null) {
+    //             await prismaService.project.delete({
+    //                 where: { id: testProjectId },
+    //             }).catch(e => console.log('Error deleting project:', e instanceof Error ? e.message : String(e)));
 
-    async function cleanupPreviousTestData() {
-        try {
-            // Look for test data by name
-            const previousProject = await prismaService.project.findFirst({
-                where: { name: testProjectName },
-            });
+    //             testProjectId = null;
+    //         }
+    //     } catch (error) {
+    //         console.log('Error during cleanup:', error instanceof Error ? error.message : String(error));
+    //     }
+    // }
 
-            if (previousProject) {
-                // Find artifacts linked to this project
-                const artifacts = await prismaService.artifact.findMany({
-                    where: { projectId: previousProject.id },
-                });
+    // async function cleanupPreviousTestData() {
+    //     try {
+    //         // Look for test data by name
+    //         const previousProject = await prismaService.project.findFirst({
+    //             where: { name: testProjectName },
+    //         });
 
-                // Clean up artifacts first - in the correct order
-                for (const artifact of artifacts) {
-                    // Delete reasoning data
-                    await prismaService.reasoningPoint.deleteMany({
-                        where: {
-                            summary: {
-                                artifactId: artifact.id
-                            }
-                        }
-                    });
+    //         if (previousProject) {
+    //             // Find artifacts linked to this project
+    //             const artifacts = await prismaService.artifact.findMany({
+    //                 where: { projectId: previousProject.id },
+    //             });
 
-                    await prismaService.summaryVersion.deleteMany({
-                        where: {
-                            summary: {
-                                artifactId: artifact.id
-                            }
-                        }
-                    });
+    //             // Clean up artifacts first - in the correct order
+    //             for (const artifact of artifacts) {
+    //                 // Delete reasoning data
+    //                 await prismaService.reasoningPoint.deleteMany({
+    //                     where: {
+    //                         summary: {
+    //                             artifactId: artifact.id
+    //                         }
+    //                     }
+    //                 });
 
-                    await prismaService.reasoningSummary.deleteMany({
-                        where: { artifactId: artifact.id }
-                    });
+    //                 await prismaService.summaryVersion.deleteMany({
+    //                     where: {
+    //                         summary: {
+    //                             artifactId: artifact.id
+    //                         }
+    //                     }
+    //                 });
 
-                    // Delete interactions
-                    await prismaService.artifactInteraction.deleteMany({
-                        where: { artifactId: artifact.id },
-                    });
+    //                 await prismaService.reasoningSummary.deleteMany({
+    //                     where: { artifactId: artifact.id }
+    //                 });
 
-                    // Delete versions
-                    await prismaService.artifactVersion.deleteMany({
-                        where: { artifactId: artifact.id },
-                    });
+    //                 // Delete interactions
+    //                 await prismaService.artifactInteraction.deleteMany({
+    //                     where: { artifactId: artifact.id },
+    //                 });
 
-                    // Delete the artifact
-                    await prismaService.artifact.delete({
-                        where: { id: artifact.id },
-                    });
-                }
+    //                 // Delete versions
+    //                 await prismaService.artifactVersion.deleteMany({
+    //                     where: { artifactId: artifact.id },
+    //                 });
 
-                // Delete the project
-                await prismaService.project.delete({
-                    where: { id: previousProject.id },
-                });
-            }
-        } catch (error) {
-            console.log('Error during cleanup of previous test data:', error instanceof Error ? error.message : String(error));
-        }
-    }
+    //                 // Delete the artifact
+    //                 await prismaService.artifact.delete({
+    //                     where: { id: artifact.id },
+    //                 });
+    //             }
+
+    //             // Delete the project
+    //             await prismaService.project.delete({
+    //                 where: { id: previousProject.id },
+    //             });
+    //         }
+    //     } catch (error) {
+    //         console.log('Error during cleanup of previous test data:', error instanceof Error ? error.message : String(error));
+    //     }
+    // }
 
     describe('ProjectRepository', () => {
         it('should create a project and retrieve it', async () => {

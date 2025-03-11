@@ -20,9 +20,9 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
         private readonly cacheService: CacheService,
     ) {
         // Set base directories - could be configurable in the future
-        const baseDir = path.resolve(__dirname, '../..');
-        this.templatesDir = path.join(baseDir, 'templates/artifacts');
-        this.systemPromptsDir = path.join(baseDir, 'templates/system-prompts');
+        const baseDir = path.resolve(__dirname, './');
+        this.templatesDir = path.join(baseDir, 'artifacts');
+        this.systemPromptsDir = path.join(baseDir, 'system-prompts');
     }
 
     /**
