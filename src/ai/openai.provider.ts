@@ -181,17 +181,17 @@ export class OpenAIProvider implements AIProviderInterface {
   }
 
   /**
-   * Generate a streaming response from the OpenAI model
-   * 
-   * @param systemPrompt - Instructions for the AI model
-   * @param userPrompt - User message or request
-   * @param artifactFormat - Format specifications for the artifact
-   * @param isUpdate - Whether this is an update to an existing artifact
-   * @param conversationHistory - Previous messages in the conversation
-   * @param model - Model name/identifier to use
-   * @param onChunk - Callback for each chunk of the streaming response
-   * @returns The complete response after streaming is finished
-   */
+ * Generate a streaming response from the OpenAI model
+ * 
+ * @param systemPrompt - Instructions for the AI model
+ * @param userPrompt - User message or request
+ * @param artifactFormat - Format specifications for the artifact
+ * @param isUpdate - Whether this is an update to an existing artifact
+ * @param conversationHistory - Previous messages in the conversation
+ * @param model - Model name/identifier to use
+ * @param onChunk - Callback for each chunk of the streaming response
+ * @returns The complete response after streaming is finished
+ */
   async generateStreamingResponse(
     systemPrompt: string,
     userPrompt: string,
@@ -227,8 +227,11 @@ export class OpenAIProvider implements AIProviderInterface {
       stream: true
     };
 
+    let response: Response | null = null;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
     try {
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      response = await fetch(`${this.config.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: this.baseHeaders,
         body: JSON.stringify(requestBody)
@@ -243,7 +246,7 @@ export class OpenAIProvider implements AIProviderInterface {
         throw new Error('No response body received');
       }
 
-      const reader = response.body.getReader();
+      reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let fullResponse = '';
 
@@ -281,6 +284,18 @@ export class OpenAIProvider implements AIProviderInterface {
       return fullResponse;
     } catch (error) {
       throw new Error(`Failed to generate streaming response: ${error.message}`);
+    } finally {
+      // Ensure resources are always cleaned up, even if an error occurs
+      if (reader) {
+        reader.releaseLock();
+      }
+      if (response && response.body) {
+        try {
+          await response.body.cancel();
+        } catch (e) {
+          console.error('Error cancelling response body:', e);
+        }
+      }
     }
   }
 }

@@ -14,6 +14,7 @@
     "^src/(.*)$": "<rootDir>/../src/$1"
   },
   "globalSetup": "<rootDir>/global-setup.ts",
+  "globalTeardown": "<rootDir>/global-teardown.ts",
   "testTimeout": 30000,
   "forceExit": true,
   "detectOpenHandles": true
