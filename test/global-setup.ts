@@ -1,4 +1,5 @@
 // test/global-setup.ts
+
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
 
@@ -7,6 +8,9 @@ import { execSync } from 'child_process';
  */
 module.exports = async () => {
     console.log('🔧 Setting up test environment...');
+
+    // Debug: Print database URL (obfuscating password)
+    console.log('DATABASE_URL =', process.env.DATABASE_URL?.replace(/:.+@/, ':****@'));
 
     // Create a Prisma client
     const prisma = new PrismaClient();

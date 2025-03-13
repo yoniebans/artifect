@@ -97,9 +97,12 @@ export function validateAndFormatResponse(
 ): AIModelResponse {
     const { rawResponse, artifactContent, commentary } = extractedResponse;
 
-    // For updates, make sure we have artifact content
-    if (isUpdate && (!artifactContent || artifactContent.trim() === '')) {
-        throw new Error('Update response must contain artifact content');
+    // Allow the AI to respond with just commentary if needed
+    // This enables a more natural conversational flow, especially for
+    // information gathering before content creation
+    if (isUpdate && (!artifactContent || artifactContent.trim() === '') && (!commentary || commentary.trim() === '')) {
+        // Only throw an error if neither content nor commentary is provided
+        throw new Error('Update response must contain either artifact content or commentary');
     }
 
     return {

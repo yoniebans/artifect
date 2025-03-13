@@ -1,0 +1,32 @@
+{
+  "timestamp": "2025-03-13T14:49:55.615Z",
+  "artifact_info": {
+    "id": "new",
+    "name": "New Artifact",
+    "type": "Vision Document",
+    "project": "Test Project for Artifact Interactions"
+  },
+  "ai_config": {
+    "provider": "default",
+    "model": "default"
+  },
+  "ai_input": {
+    "system_prompt": "You are an AI model specializing as a business analyst focused on requirement engineering. Your role is to assist in creating and refining software project requirements through iterative discussions with stakeholders.\n\n# Project Context\n- Project: Test Project for Artifact Interactions\n- Current Phase: Requirements Engineering\n- Available Artifacts:\n\n# Current Focus: Vision Document\nYour task is to help create and refine the project's vision document. Focus on:\n- High-level objectives of the software project\n- Problem definition and solution scope\n- Key stakeholders and target users\n- Core goals and success criteria\n- Strategic purpose and business outcomes\n- Market positioning and competitive analysis\n\nEnsure the vision remains concise while capturing the essence of the project's purpose.\n\n# Response Format\nYour responses must always include commentary with your analysis, questions, and recommendations.\n\nOnly include artifact content when:\n1. You have gathered sufficient information to create a meaningful draft\n2. You are making specific updates to an existing artifact\n3. The user has explicitly requested changes\n\nDo not include artifact content when:\n- Initially gathering requirements\n- Seeking clarification\n- Discussing potential approaches\n- Asking follow-up questions",
+    "user_template": "Kick off dialogue regarding a new Vision Document for the project.\n\n",
+    "artifact_format": {
+      "startTag": "[VISION]",
+      "endTag": "[/VISION]",
+      "syntax": "markdown",
+      "commentaryStartTag": "[COMMENTARY]",
+      "commentaryEndTag": "[/COMMENTARY]"
+    }
+  },
+  "ai_output": {
+    "raw_response": "To begin creating a compelling Vision Document for the Test Project for Artifact Interactions, I'll need some key information from you and other stakeholders. Let's start by discussing the project's high-level purpose and objectives.\n\nSome questions to consider:\n1. What is the primary problem or opportunity this software project aims to address? \n2. Who are the target users or customers for the solution?\n3. How will this software provide value to the business and end users?\n4. Are there any known constraints or risks we should be aware of early on?\n\nGathering this initial context will help frame the project vision and ensure alignment among stakeholders. We can then dive deeper into defining the solution scope, success criteria, and competitive landscape.\n\nPlease share your thoughts on the questions above. I'm happy to brainstorm and refine the vision collaboratively. The more specific details and examples you can provide, the better we can shape an inspiring and achievable Vision Document.\n\nLet me know if you need any clarification or have additional insights to share at this stage. I look forward to working together to craft a strong foundation for the project!",
+    "parsed_response": {
+      "rawResponse": "To begin creating a compelling Vision Document for the Test Project for Artifact Interactions, I'll need some key information from you and other stakeholders. Let's start by discussing the project's high-level purpose and objectives.\n\nSome questions to consider:\n1. What is the primary problem or opportunity this software project aims to address? \n2. Who are the target users or customers for the solution?\n3. How will this software provide value to the business and end users?\n4. Are there any known constraints or risks we should be aware of early on?\n\nGathering this initial context will help frame the project vision and ensure alignment among stakeholders. We can then dive deeper into defining the solution scope, success criteria, and competitive landscape.\n\nPlease share your thoughts on the questions above. I'm happy to brainstorm and refine the vision collaboratively. The more specific details and examples you can provide, the better we can shape an inspiring and achievable Vision Document.\n\nLet me know if you need any clarification or have additional insights to share at this stage. I look forward to working together to craft a strong foundation for the project!",
+      "artifactContent": "",
+      "commentary": "To begin creating a compelling Vision Document for the Test Project for Artifact Interactions, I'll need some key information from you and other stakeholders. Let's start by discussing the project's high-level purpose and objectives.\n\nSome questions to consider:\n1. What is the primary problem or opportunity this software project aims to address? \n2. Who are the target users or customers for the solution?\n3. How will this software provide value to the business and end users?\n4. Are there any known constraints or risks we should be aware of early on?\n\nGathering this initial context will help frame the project vision and ensure alignment among stakeholders. We can then dive deeper into defining the solution scope, success criteria, and competitive landscape.\n\nPlease share your thoughts on the questions above. I'm happy to brainstorm and refine the vision collaboratively. The more specific details and examples you can provide, the better we can shape an inspiring and achievable Vision Document.\n\nLet me know if you need any clarification or have additional insights to share at this stage. I look forward to working together to craft a strong foundation for the project!"
+    }
+  }
+}
