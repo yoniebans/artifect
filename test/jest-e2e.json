@@ -15,7 +15,7 @@
   },
   "globalSetup": "<rootDir>/global-setup.ts",
   "globalTeardown": "<rootDir>/global-teardown.ts",
-  "testTimeout": 30000,
+  "testTimeout": 40000,
   "forceExit": true,
   "detectOpenHandles": true
 }

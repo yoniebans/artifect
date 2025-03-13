@@ -84,6 +84,41 @@ export class AnthropicProvider implements AIProviderInterface {
     }
 
     /**
+     * Format the user prompt to include response format instructions
+     * @param userPrompt - The original user prompt
+     * @param artifactFormat - Format specifications for the artifact
+     * @param isUpdate - Whether this is an update operation
+     * @returns Formatted user prompt with instructions
+     */
+    private formatUserPrompt(userPrompt: string, artifactFormat: ArtifactFormat, isUpdate: boolean): string {
+        if (isUpdate) {
+            return `${userPrompt}
+    
+# Response Format
+Provide your response using the following tags:
+
+${artifactFormat.startTag}
+Your updated ${artifactFormat.syntax} content here.
+${artifactFormat.endTag}
+
+${artifactFormat.commentaryStartTag}
+Provide any additional commentary or questions for the user here.
+${artifactFormat.commentaryEndTag}
+`;
+        } else {
+            return `${userPrompt}
+    
+# Response Format
+
+Please update the content within the tags as follows:
+
+${artifactFormat.commentaryStartTag}
+[Your initial questions and commentary to start the dialogue here]
+${artifactFormat.commentaryEndTag}`;
+        }
+    }
+
+    /**
      * Generate a response from the Anthropic model
      * 
      * @param systemPrompt - Instructions for the AI model
@@ -104,6 +139,9 @@ export class AnthropicProvider implements AIProviderInterface {
     ): Promise<string> {
         const modelToUse = model || this.config.defaultModel;
 
+        // Format the user prompt to include instructions about the response format
+        const formattedUserPrompt = this.formatUserPrompt(userPrompt, artifactFormat, isUpdate);
+
         // Prepare messages for API request
         const messages: AnthropicMessage[] = [];
 
@@ -115,8 +153,8 @@ export class AnthropicProvider implements AIProviderInterface {
             })));
         }
 
-        // Add the current user prompt
-        messages.push({ role: 'user', content: userPrompt });
+        // Add the formatted user prompt
+        messages.push({ role: 'user', content: formattedUserPrompt });
 
         // Prepare the request
         const requestBody: AnthropicChatRequest = {
@@ -173,17 +211,17 @@ export class AnthropicProvider implements AIProviderInterface {
     }
 
     /**
- * Generate a streaming response from the Anthropic model
- * 
- * @param systemPrompt - Instructions for the AI model
- * @param userPrompt - User message or request
- * @param artifactFormat - Format specifications for the artifact
- * @param isUpdate - Whether this is an update to an existing artifact
- * @param conversationHistory - Previous messages in the conversation
- * @param model - Model name/identifier to use
- * @param onChunk - Callback for each chunk of the streaming response
- * @returns The complete response after streaming is finished
- */
+     * Generate a streaming response from the Anthropic model
+     * 
+     * @param systemPrompt - Instructions for the AI model
+     * @param userPrompt - User message or request
+     * @param artifactFormat - Format specifications for the artifact
+     * @param isUpdate - Whether this is an update to an existing artifact
+     * @param conversationHistory - Previous messages in the conversation
+     * @param model - Model name/identifier to use
+     * @param onChunk - Callback for each chunk of the streaming response
+     * @returns The complete response after streaming is finished
+     */
     async generateStreamingResponse(
         systemPrompt: string,
         userPrompt: string,
@@ -194,6 +232,9 @@ export class AnthropicProvider implements AIProviderInterface {
         onChunk?: (chunk: string) => void
     ): Promise<string> {
         const modelToUse = model || this.config.defaultModel;
+
+        // Format the user prompt to include instructions about the response format
+        const formattedUserPrompt = this.formatUserPrompt(userPrompt, artifactFormat, isUpdate);
 
         // Prepare messages for API request
         const messages: AnthropicMessage[] = [];
@@ -206,8 +247,8 @@ export class AnthropicProvider implements AIProviderInterface {
             })));
         }
 
-        // Add the current user prompt
-        messages.push({ role: 'user', content: userPrompt });
+        // Add the formatted user prompt
+        messages.push({ role: 'user', content: formattedUserPrompt });
 
         // Prepare the request
         const requestBody: AnthropicChatRequest = {
