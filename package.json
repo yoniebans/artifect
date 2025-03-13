@@ -37,7 +37,9 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:reset": "ts-node prisma/reset.ts",
+    "db:reset:seed": "ts-node prisma/reset.ts && npm run db:seed"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",

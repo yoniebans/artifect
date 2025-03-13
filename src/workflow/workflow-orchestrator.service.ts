@@ -178,39 +178,28 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
   private async loadTypeWithDependencies(typeId: number): Promise<any> {
     const artifactType = await this.artifactRepository.getArtifactType(typeId);
 
-    // In test environments, we might not have a valid artifact type
-    // So we'll create a default one if needed
     if (!artifactType) {
-      // For testing, return a simplified mock artifact type
-      if (process.env.NODE_ENV === 'test') {
-        return {
-          id: typeId,
-          name: 'Test Type',
-          slug: 'test_type',
-          lifecyclePhaseId: 1,
-          dependencies: [],
-          lifecyclePhase: {
-            id: 1,
-            name: 'Requirements'
-          }
-        };
-      }
-
       throw new Error(`Artifact type with id ${typeId} not found`);
     }
 
-    // We need to load dependencies separately since they're not directly accessible
+    // Get the dependencies for this type
     let dependencies: any[] = [];
     try {
-      dependencies = await this.artifactRepository.getArtifactTypeDependencies(artifactType.slug);
+      // Get the slug from the artifactType
+      const slug = artifactType.slug;
+
+      // Use the existing method to get dependencies
+      dependencies = await this.artifactRepository.getArtifactTypeDependencies(slug);
+
+      // Add some debug logging to see what's being returned
+      this.logger.debug(`Dependencies for ${artifactType.name} (ID ${typeId}): ${JSON.stringify(dependencies)}`);
     } catch (error) {
-      // Handle errors gracefully in case the dependencies can't be loaded
       this.logger.warn(`Failed to load dependencies for artifact type ${artifactType.slug}: ${error.message}`);
     }
 
     return {
       ...artifactType,
-      dependencies: dependencies.length ? dependencies : [],
+      dependencies: dependencies || [], // Ensure it's always an array
       lifecyclePhase: await this.artifactRepository.getLifecyclePhases()
         .then(phases => phases.find(p => p.id === artifactType.lifecyclePhaseId))
         .catch(() => ({ id: artifactType.lifecyclePhaseId, name: 'Unknown' }))

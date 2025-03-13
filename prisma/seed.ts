@@ -144,7 +144,6 @@ async function seedTypeDependencies(types: ArtifactType[]): Promise<any[]> {
     { dependentTypeId: functionalReqs.id, dependencyTypeId: visionDoc.id },
     { dependentTypeId: nonFunctionalReqs.id, dependencyTypeId: functionalReqs.id },
     { dependentTypeId: useCases.id, dependencyTypeId: nonFunctionalReqs.id },
-    { dependentTypeId: c4Context.id, dependencyTypeId: useCases.id },
     { dependentTypeId: c4Container.id, dependencyTypeId: c4Context.id },
     { dependentTypeId: c4Component.id, dependencyTypeId: c4Container.id },
   ];

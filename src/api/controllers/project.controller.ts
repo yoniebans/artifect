@@ -47,48 +47,54 @@ export class ProjectController {
         try {
             const projectData = await this.workflowOrchestrator.viewProject(Number(projectId));
 
-            // Convert the project data to the expected format with proper type assertions
+            // Define the phase order mapping just like in the Python version
+            const phaseOrder: Record<string, string> = {
+                "Requirements": "1",
+                "Design": "2"
+            };
+
+            // Create artifact phases array
+            const artifactPhases: any[] = [];
+
+            // Process each phase and its artifacts
+            for (const [phaseName, artifacts] of Object.entries(projectData.artifacts)) {
+                const phaseArtifacts: any[] = [];
+
+                // Process each artifact in this phase
+                for (const artifact of artifacts) {
+                    phaseArtifacts.push({
+                        artifact_id: artifact.id ? String(artifact.id) : "",
+                        artifact_type_id: String(artifact.type_id),
+                        artifact_type_name: artifact.type,
+                        artifact_version_number: artifact.version_number,
+                        artifact_version_content: artifact.content,
+                        name: artifact.name,
+                        dependent_type_id: artifact.dependent_type_id ? String(artifact.dependent_type_id) : null,
+                        state_id: String(artifact.state_id),
+                        state_name: artifact.state_name,
+                        available_transitions: artifact.available_transitions.map(t => ({
+                            state_id: String(t.state_id),
+                            state_name: t.state_name
+                        }))
+                    });
+                }
+
+                // Add this phase to the phases array
+                artifactPhases.push({
+                    name: phaseName,
+                    phase_id: phaseOrder[phaseName] || "",
+                    order: phaseOrder[phaseName] || "",
+                    artifacts: phaseArtifacts
+                });
+            }
+
+            // Construct the full project response
             const projectDto: ProjectDto = {
                 project_id: projectData.project_id,
                 name: projectData.name,
                 created_at: projectData.created_at,
-                updated_at: projectData.updated_at as Date | null,
-                phases: Object.entries(projectData.artifacts).map(([phaseName, artifacts]) => {
-                    // Create a phaseId and order property in a more robust way
-                    let phaseId = '0';
-                    let order = '0';
-
-                    if (artifacts.length > 0) {
-                        // Safely access properties that might not exist using type assertion
-                        const artifact = artifacts[0];
-                        // Use optional chaining and nullish coalescing for safer access
-                        const artifactObj = artifact as any;
-                        phaseId = artifactObj?.phase_id ?? '0';
-                        order = artifactObj?.order ?? '0';
-                    }
-
-                    // Map the artifacts to the expected format
-                    return {
-                        name: phaseName,
-                        phase_id: phaseId,
-                        order: order,
-                        artifacts: artifacts.map(artifact => ({
-                            artifact_id: artifact.id,
-                            artifact_type_id: artifact.type_id,
-                            artifact_type_name: artifact.type,
-                            artifact_version_number: artifact.version_number,
-                            artifact_version_content: artifact.content,
-                            name: artifact.name,
-                            dependent_type_id: artifact.dependent_type_id,
-                            state_id: artifact.state_id,
-                            state_name: artifact.state_name,
-                            available_transitions: artifact.available_transitions.map(t => ({
-                                state_id: t.state_id,
-                                state_name: t.state_name
-                            }))
-                        }))
-                    };
-                })
+                updated_at: projectData.updated_at,
+                phases: artifactPhases
             };
 
             return projectDto;
