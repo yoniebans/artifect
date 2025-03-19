@@ -2,8 +2,8 @@
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AIProviderInterface, AIMessage, AIModelResponse, AIRequestResponse } from './interfaces/ai-provider.interface';
-import { ArtifactFormat } from '../templates/interfaces/template-manager.interface';
+import { AIProviderInterface, AIMessage, AIModelResponse, AIRequestResponse } from '../interfaces/ai-provider.interface';
+import { ArtifactFormat } from '../../templates/interfaces/template-manager.interface';
 
 /**
  * Configuration options for the OpenAI Function Calling provider

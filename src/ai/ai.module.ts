@@ -1,10 +1,10 @@
-// src/ai/ai.module.ts
-
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TemplatesModule } from '../templates/templates.module';
-import { OpenAIProvider } from './openai.provider';
-import { AnthropicProvider } from './anthropic.provider';
+import { OpenAIProvider } from './openai/openai.provider';
+import { AnthropicProvider } from './anthropic/anthropic.provider';
+import { OpenAIFunctionCallingProvider } from './openai/openai-function-calling.provider';
+import { AnthropicFunctionCallingProvider } from './anthropic/anthropic-function-calling.provider';
 import { AIProviderFactory } from './ai-provider.factory';
 import { AIAssistantService } from './ai-assistant.service';
 
@@ -16,6 +16,8 @@ import { AIAssistantService } from './ai-assistant.service';
     providers: [
         OpenAIProvider,
         AnthropicProvider,
+        OpenAIFunctionCallingProvider,
+        AnthropicFunctionCallingProvider,
         AIProviderFactory,
         AIAssistantService,
     ],

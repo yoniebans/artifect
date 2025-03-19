@@ -3,8 +3,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIProviderInterface } from './interfaces/ai-provider.interface';
-import { OpenAIProvider } from './openai.provider';
-import { AnthropicProvider } from './anthropic.provider';
+import { OpenAIProvider } from './openai/openai.provider';
+import { AnthropicProvider } from './anthropic/anthropic.provider';
+import { OpenAIFunctionCallingProvider } from './openai/openai-function-calling.provider';
+import { AnthropicFunctionCallingProvider } from './anthropic/anthropic-function-calling.provider';
 
 /**
  * Factory for creating AI providers
@@ -17,6 +19,8 @@ export class AIProviderFactory {
         private configService: ConfigService,
         private openaiProvider: OpenAIProvider,
         private anthropicProvider: AnthropicProvider,
+        private openAIFunctionCallingProvider: OpenAIFunctionCallingProvider,
+        private anthropicFunctionCallingProvider: AnthropicFunctionCallingProvider,
     ) {
         // Initialize the providers map
         this.providers = new Map<string, AIProviderInterface>();
@@ -24,12 +28,14 @@ export class AIProviderFactory {
         // Use try-catch to avoid failures in test environments
         try {
             this.providers.set('openai', this.openaiProvider);
+            this.providers.set('openai-function-calling', this.openAIFunctionCallingProvider);
         } catch (error) {
             console.warn('OpenAI provider not available:', error instanceof Error ? error.message : String(error));
         }
 
         try {
             this.providers.set('anthropic', this.anthropicProvider);
+            this.providers.set('anthropic-function-calling', this.anthropicFunctionCallingProvider);
         } catch (error) {
             console.warn('Anthropic provider not available:', error instanceof Error ? error.message : String(error));
         }

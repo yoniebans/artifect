@@ -3,7 +3,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { OpenAIProvider } from '../src/ai/openai.provider';
+import { OpenAIProvider } from '../src/ai/openai/openai.provider';
 import configuration from '../src/config/configuration';
 import aiConfiguration from '../src/ai/ai.config';
 

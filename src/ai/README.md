@@ -6,6 +6,20 @@ This module provides integration with AI services for the AI-Assisted Software E
 
 The AI module connects the application with various AI providers (e.g., OpenAI, Anthropic) to generate artifacts based on templates and user inputs. It handles the communication with these services, processes responses, and formats the content appropriately.
 
+## Directory Structure
+
+```
+src/ai/
+├── interfaces/            # Common interfaces
+├── openai/                # OpenAI provider implementations
+├── anthropic/             # Anthropic provider implementations
+├── ai-provider.factory.ts # Factory for creating providers
+├── ai-assistant.service.ts # Main service for AI interactions
+├── response-parser.ts     # Utilities for parsing AI responses
+├── ai.config.ts           # Configuration
+└── ai.module.ts           # NestJS module definition
+```
+
 ## Components
 
 ### Core Interfaces
@@ -16,8 +30,15 @@ The AI module connects the application with various AI providers (e.g., OpenAI, 
 
 ### Providers
 
-- **OpenAIProvider**: Implementation for OpenAI's GPT models
-- **AnthropicProvider**: Implementation for Anthropic's Claude models
+#### OpenAI
+
+- **OpenAIProvider**: Basic implementation for OpenAI's GPT models using traditional prompting
+- **OpenAIFunctionCallingProvider**: Enhanced implementation using OpenAI's function calling capabilities
+
+#### Anthropic
+
+- **AnthropicProvider**: Basic implementation for Anthropic's Claude models using traditional prompting
+- **AnthropicFunctionCallingProvider**: Enhanced implementation using Anthropic's tool use capabilities
 
 ### Utilities
 
@@ -30,6 +51,21 @@ The AI module connects the application with various AI providers (e.g., OpenAI, 
 ### Main Service
 
 - **AIAssistantService**: Coordinates the AI interactions, including generating artifacts, handling updates, and logging
+
+## Provider Implementation Approaches
+
+The module offers two implementation approaches for each AI provider:
+
+1. **Traditional Prompting**: Uses a standard text-based prompt with formatting instructions
+
+   - Suitable for simpler use cases
+   - More flexible as it works with any model version
+
+2. **Function/Tool-based**: Uses the provider's function calling or tool use capabilities
+   - Provides more structured output
+   - Better separation of artifact content and commentary
+   - Requires models that support these capabilities
+   - Often results in higher quality outputs for structured tasks
 
 ## Configuration
 
@@ -85,6 +121,26 @@ export class YourService {
 }
 ```
 
+3. To use a specific provider, specify it when calling:
+
+```typescript
+// Use default OpenAI provider
+await this.aiAssistantService.kickoffArtifactInteraction(context, 'openai');
+
+// Use OpenAI with function calling
+await this.aiAssistantService.kickoffArtifactInteraction(
+  context,
+  'openai-function-calling',
+);
+
+// Use Anthropic with tool use
+await this.aiAssistantService.updateArtifact(
+  context,
+  userMessage,
+  'anthropic-function-calling',
+);
+```
+
 ## Streaming Support
 
 The AI module supports streaming responses for a better user experience:
@@ -98,6 +154,7 @@ await this.aiAssistantService.generateStreamingArtifact(
     // Handle each chunk of the response
     console.log(chunk);
   },
+  'anthropic', // Provider ID (optional)
 );
 ```
 
@@ -105,7 +162,7 @@ await this.aiAssistantService.generateStreamingArtifact(
 
 The AI module includes comprehensive test coverage for all components:
 
-- **Provider Tests**: Both OpenAIProvider and AnthropicProvider have dedicated test suites that verify:
+- **Provider Tests**: Each provider has dedicated test suites that verify:
 
   - API request/response handling
   - Error management
@@ -127,6 +184,9 @@ npm test
 
 # Run only AI module tests
 npm test -- src/ai
+
+# Run only OpenAI provider tests
+npm test -- src/ai/openai
 ```
 
 ## Extending
@@ -134,9 +194,12 @@ npm test -- src/ai
 To add a new AI provider:
 
 1. Create a new provider class that implements `AIProviderInterface`
-2. Register it in the `AIProviderFactory`
-3. Update the configuration validation schema in `ai.config.ts`
-4. Create corresponding test files following the pattern in existing provider tests
+2. Create corresponding spec file for testing
+3. Add it to the appropriate subfolder or create a new one
+4. Update the barrel file for the subfolder
+5. Register it in the `AIProviderFactory`
+6. Update the configuration validation schema in `ai.config.ts`
+7. Update the `AIModule` to include the new provider
 
 ## Logging
 

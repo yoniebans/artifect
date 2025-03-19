@@ -2,9 +2,9 @@
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AIProviderInterface, AIMessage, AIModelResponse, AIRequestResponse } from './interfaces/ai-provider.interface';
-import { ArtifactFormat } from '../templates/interfaces/template-manager.interface';
-import { extractContentAndCommentary, validateAndFormatResponse } from './response-parser';
+import { AIProviderInterface, AIMessage, AIModelResponse, AIRequestResponse } from '../interfaces/ai-provider.interface';
+import { ArtifactFormat } from '../../templates/interfaces/template-manager.interface';
+import { extractContentAndCommentary, validateAndFormatResponse } from '../response-parser';
 
 /**
  * Configuration options for the Anthropic provider

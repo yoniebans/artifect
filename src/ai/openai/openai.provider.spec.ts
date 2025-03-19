@@ -3,7 +3,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { OpenAIProvider } from './openai.provider';
-import { ArtifactFormat } from '../templates/interfaces/template-manager.interface';
+import { ArtifactFormat } from '../../templates/interfaces/template-manager.interface';
 
 // Mock global fetch
 global.fetch = jest.fn();
