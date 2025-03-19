@@ -1,5 +1,3 @@
-// src/ai/README.md
-
 # AI Module
 
 This module provides integration with AI services for the AI-Assisted Software Engineering Platform.
@@ -103,6 +101,34 @@ await this.aiAssistantService.generateStreamingArtifact(
 );
 ```
 
+## Testing
+
+The AI module includes comprehensive test coverage for all components:
+
+- **Provider Tests**: Both OpenAIProvider and AnthropicProvider have dedicated test suites that verify:
+
+  - API request/response handling
+  - Error management
+  - Conversation history handling
+  - Response parsing
+  - Streaming functionality
+
+- **AIAssistantService Tests**: Verify the service correctly coordinates with providers and templates
+
+- **AIProviderFactory Tests**: Ensure proper provider registration and selection
+
+- **Response Parser Tests**: Validate the extraction and validation of content from AI responses
+
+To run the tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run only AI module tests
+npm test -- src/ai
+```
+
 ## Extending
 
 To add a new AI provider:
@@ -110,6 +136,7 @@ To add a new AI provider:
 1. Create a new provider class that implements `AIProviderInterface`
 2. Register it in the `AIProviderFactory`
 3. Update the configuration validation schema in `ai.config.ts`
+4. Create corresponding test files following the pattern in existing provider tests
 
 ## Logging
 
