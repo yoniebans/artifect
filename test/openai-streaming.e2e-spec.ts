@@ -95,10 +95,10 @@ describe('OpenAI Streaming (e2e)', () => {
         // Add new line after streaming is complete
         console.log('\n\n✅ Streaming completed');
         console.log(`📊 Received ${chunks.length} chunks`);
-        console.log(`📝 Full response length: ${response.length} characters`);
+        console.log(`📝 Full response length: ${response.rawResponse.length} characters`);
 
         // Display chunk statistics (optional)
-        const avgChunkSize = Math.round(response.length / chunks.length);
+        const avgChunkSize = Math.round(response.rawResponse.length / chunks.length);
         console.log(`📊 Average chunk size: ${avgChunkSize} characters`);
 
         // Log a few example chunks to show their content
@@ -111,15 +111,15 @@ describe('OpenAI Streaming (e2e)', () => {
         }
 
         // Verify we got a proper response
-        expect(response.length).toBeGreaterThan(0);
+        expect(response.rawResponse.length).toBeGreaterThan(0);
         expect(chunks.length).toBeGreaterThan(1);
 
         // Verify that concatenating all chunks equals the full response
         const concatenatedChunks = chunks.join('');
-        expect(concatenatedChunks).toEqual(response);
+        expect(concatenatedChunks).toEqual(response.rawResponse);
 
         // Simple content verification - should contain key terms related to AI in software development
-        const hasRelevantTerms = /(AI|software|development|code|generation|testing)/.test(response);
+        const hasRelevantTerms = /(AI|software|development|code|generation|testing)/.test(response.rawResponse);
         expect(hasRelevantTerms).toBe(true);
     });
 });

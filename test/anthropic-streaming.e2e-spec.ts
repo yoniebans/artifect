@@ -3,7 +3,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AnthropicProvider } from '../src/ai/anthropic.provider';
+import { AnthropicProvider } from '../src/ai/anthropic/anthropic.provider';
 import configuration from '../src/config/configuration';
 import aiConfiguration from '../src/ai/ai.config';
 
@@ -94,10 +94,10 @@ describe('Anthropic Streaming (e2e)', () => {
 
         console.log('\n\n✅ Streaming completed');
         console.log(`📊 Received ${chunks.length} chunks`);
-        console.log(`📝 Full response length: ${response.length} characters`);
+        console.log(`📝 Full response length: ${response.rawResponse.length} characters`);
 
         // Calculate average chunk size
-        const avgChunkSize = Math.round(response.length / chunks.length);
+        const avgChunkSize = Math.round(response.rawResponse.length / chunks.length);
         console.log(`📊 Average chunk size: ${avgChunkSize} characters`);
 
         // Log a few example chunks to show their content
@@ -110,15 +110,15 @@ describe('Anthropic Streaming (e2e)', () => {
         }
 
         // Verify we got a proper response
-        expect(response.length).toBeGreaterThan(0);
+        expect(response.rawResponse.length).toBeGreaterThan(0);
         expect(chunks.length).toBeGreaterThan(1);
 
         // Verify that concatenating all chunks equals the full response
         const concatenatedChunks = chunks.join('');
-        expect(concatenatedChunks).toEqual(response);
+        expect(concatenatedChunks).toEqual(response.rawResponse);
 
         // Simple content verification - should contain key terms related to AI in software development
-        const hasRelevantTerms = /(AI|software|development|code|generation|testing)/.test(response);
+        const hasRelevantTerms = /(AI|software|development|code|generation|testing)/.test(response.rawResponse);
         expect(hasRelevantTerms).toBe(true);
     });
 });
