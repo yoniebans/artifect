@@ -100,10 +100,10 @@ async function seedArtifactTypes(phases: LifecyclePhase[]): Promise<ArtifactType
   await prisma.artifactType.deleteMany({});
 
   const types = [
-    { name: 'Vision Document', slug: 'vision', syntax: 'markdown', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Functional Requirements', slug: 'functional_requirements', syntax: 'markdown', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Non-Functional Requirements', slug: 'non_functional_requirements', syntax: 'markdown', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Use Cases', slug: 'use_cases', syntax: 'markdown', lifecyclePhaseId: requirementsPhase.id },
+    { name: 'Vision Document', slug: 'vision', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
+    { name: 'Functional Requirements', slug: 'functional_requirements', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
+    { name: 'Non-Functional Requirements', slug: 'non_functional_requirements', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
+    { name: 'Use Cases', slug: 'use_cases', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
     { name: 'C4 Context', slug: 'c4_context', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },
     { name: 'C4 Container', slug: 'c4_container', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },
     { name: 'C4 Component', slug: 'c4_component', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },

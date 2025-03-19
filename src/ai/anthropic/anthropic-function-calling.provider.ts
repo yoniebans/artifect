@@ -186,7 +186,7 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
             };
         } else {
             // Default to auto for initial creations
-            requestBody.tool_choice = "auto";
+            requestBody.tool_choice = { type: "auto" };
         }
 
         try {
@@ -309,7 +309,7 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
                 name: "generate_artifact_content"  // Correct format: directly using name
             };
         } else {
-            requestBody.tool_choice = "auto";
+            requestBody.tool_choice = { type: "auto" };
         }
 
         let response: Response | null = null;
