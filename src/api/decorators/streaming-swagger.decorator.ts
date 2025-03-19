@@ -30,7 +30,7 @@ export const ApiStreamingInteractArtifact = () => {
         ApiBody({ type: ArtifactUpdateAIRequestDto }),
         ApiHeader({
             name: 'X-AI-Provider',
-            description: 'AI provider to use (e.g., "anthropic", "openai")',
+            description: 'AI provider to use (e.g., "anthropic", "anthropic-function-calling", "openai", "openai-function-calling")',
             required: false
         }),
         ApiHeader({

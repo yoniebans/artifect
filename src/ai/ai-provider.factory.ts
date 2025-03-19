@@ -49,10 +49,11 @@ export class AIProviderFactory {
      * @throws Error if provider is not found
      */
     getProvider(providerName: string): AIProviderInterface {
+        // Look up the provider exactly as requested without any automatic selection
         const provider = this.providers.get(providerName.toLowerCase());
 
         if (!provider) {
-            throw new Error(`AI provider '${providerName}' not found`);
+            throw new Error(`AI provider '${providerName}' not found. Available providers: ${this.getProviderNames().join(', ')}`);
         }
 
         return provider;

@@ -1,4 +1,4 @@
-// src/ai/anthropic-function-calling.provider.ts
+// src/ai/anthropic/anthropic-function-calling.provider.ts
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -52,35 +52,35 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
     private createArtifactTools(artifactFormat: ArtifactFormat, isUpdate: boolean): any[] {
         // Create a tool for generating artifact content
         const artifactContentTool = {
-            name: 'generate_artifact_content',
+            name: "generate_artifact_content",
             description: isUpdate
                 ? `Generate the updated artifact content in ${artifactFormat.syntax} format`
                 : `Generate the artifact content in ${artifactFormat.syntax} format`,
             input_schema: {
-                type: 'object',
+                type: "object",
                 properties: {
                     content: {
-                        type: 'string',
+                        type: "string",
                         description: `The ${artifactFormat.syntax} content for the artifact`
                     }
                 },
-                required: ['content']
+                required: ["content"]
             }
         };
 
         // Create a tool for providing commentary
         const commentaryTool = {
-            name: 'provide_commentary',
-            description: 'Provide commentary, questions, or additional information about the artifact',
+            name: "provide_commentary",
+            description: "Provide commentary, questions, or additional information about the artifact",
             input_schema: {
-                type: 'object',
+                type: "object",
                 properties: {
                     commentary: {
-                        type: 'string',
-                        description: 'Commentary, questions, or additional information to share with the user'
+                        type: "string",
+                        description: "Commentary, questions, or additional information to share with the user"
                     }
                 },
-                required: ['commentary']
+                required: ["commentary"]
             }
         };
 
@@ -168,18 +168,7 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
         // Add the user prompt
         messages.push({ role: 'user', content: userPrompt });
 
-        // Define tool choice based on whether this is an update or not
-        let toolChoice: any = null;
-
-        if (isUpdate) {
-            // For updates, require the artifact content tool
-            toolChoice = {
-                type: "tool_use",
-                name: "generate_artifact_content"
-            };
-        }
-
-        // Prepare the request
+        // Prepare the request - use correct format for tool_choice
         const requestBody: any = {
             model: modelToUse,
             messages,
@@ -189,9 +178,15 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
             max_tokens: 4000
         };
 
-        // Add tool_choice if specified
-        if (toolChoice) {
-            requestBody.tool_choice = toolChoice;
+        // For updates, specify tool_choice using the correct format for Anthropic
+        if (isUpdate) {
+            requestBody.tool_choice = {
+                type: "tool",
+                name: "generate_artifact_content"  // Correct format: directly using name
+            };
+        } else {
+            // Default to auto for initial creations
+            requestBody.tool_choice = "auto";
         }
 
         try {
@@ -296,7 +291,7 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
         // Add the user prompt
         messages.push({ role: 'user', content: userPrompt });
 
-        // Prepare the request
+        // Prepare the request with correct tool_choice format
         const requestBody: any = {
             model: modelToUse,
             messages,
@@ -310,9 +305,11 @@ export class AnthropicFunctionCallingProvider implements AIProviderInterface {
         // For update requests, specify tool_choice
         if (isUpdate) {
             requestBody.tool_choice = {
-                type: "tool_use",
-                name: "generate_artifact_content"
+                type: "tool",
+                name: "generate_artifact_content"  // Correct format: directly using name
             };
+        } else {
+            requestBody.tool_choice = "auto";
         }
 
         let response: Response | null = null;

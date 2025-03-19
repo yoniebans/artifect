@@ -11,16 +11,17 @@ import { ApiListAIProviders } from '../decorators/swagger.decorator';
 export class AIProviderController {
     /**
      * List available AI providers and their models
-     * This is currently using stubbed data similar to the original Python implementation
+     * Exposes both standard and function calling implementations
      * @returns Array of AI providers
      */
     @Get()
     @ApiListAIProviders()
     async listAIProviders(): Promise<AIProviderDto[]> {
         const providers: AIProviderDto[] = [
+            // Anthropic standard
             {
                 id: "anthropic",
-                name: "Anthropic",
+                name: "Anthropic (Standard)",
                 models: [
                     "claude-3-5-sonnet-20241022",
                     "claude-3-5-haiku-20241022",
@@ -29,14 +30,41 @@ export class AIProviderController {
                     "claude-3-haiku-20240307"
                 ]
             },
+            // Anthropic with function calling/tool use
+            {
+                id: "anthropic-function-calling",
+                name: "Anthropic (Tool Use)",
+                models: [
+                    "claude-3-5-sonnet-20241022",
+                    "claude-3-5-haiku-20241022",
+                    "claude-3-opus-20240229",
+                    "claude-3-sonnet-20240229",
+                    "claude-3-haiku-20240307"
+                ]
+            },
+            // OpenAI standard
             {
                 id: "openai",
-                name: "OpenAI",
+                name: "OpenAI (Standard)",
                 models: [
                     "o1-preview",
                     "o1-mini",
-                    "gpt-4o-mini",
                     "gpt-4o",
+                    "gpt-4o-mini",
+                    "gpt-4-turbo-preview",
+                    "gpt-4",
+                    "gpt-3.5-turbo"
+                ]
+            },
+            // OpenAI with function calling
+            {
+                id: "openai-function-calling",
+                name: "OpenAI (Function Calling)",
+                models: [
+                    "o1-preview",
+                    "o1-mini",
+                    "gpt-4o",
+                    "gpt-4o-mini",
                     "gpt-4-turbo-preview",
                     "gpt-4",
                     "gpt-3.5-turbo"
