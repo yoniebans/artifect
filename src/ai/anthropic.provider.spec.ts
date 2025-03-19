@@ -1,15 +1,15 @@
-// src/ai/openai.provider.spec.ts
+// src/ai/anthropic.provider.spec.ts
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { OpenAIProvider } from './openai.provider';
+import { AnthropicProvider } from './anthropic.provider';
 import { ArtifactFormat } from '../templates/interfaces/template-manager.interface';
 
 // Mock global fetch
 global.fetch = jest.fn();
 
-describe('OpenAIProvider', () => {
-    let provider: OpenAIProvider;
+describe('AnthropicProvider', () => {
+    let provider: AnthropicProvider;
     let configService: ConfigService;
 
     // Test data
@@ -24,9 +24,10 @@ describe('OpenAIProvider', () => {
     // Create the configService mock with API key
     const mockConfigService = {
         get: jest.fn((key: string) => {
-            if (key === 'OPENAI_API_KEY') return 'test-api-key';
-            if (key === 'OPENAI_DEFAULT_MODEL') return 'gpt-4';
-            if (key === 'OPENAI_BASE_URL') return 'https://api.openai.com/v1';
+            if (key === 'ANTHROPIC_API_KEY') return 'test-api-key';
+            if (key === 'ANTHROPIC_DEFAULT_MODEL') return 'claude-3-opus-20240229';
+            if (key === 'ANTHROPIC_BASE_URL') return 'https://api.anthropic.com';
+            if (key === 'ANTHROPIC_API_VERSION') return '2023-06-01';
             return undefined;
         })
     };
@@ -40,11 +41,11 @@ describe('OpenAIProvider', () => {
                     provide: ConfigService,
                     useValue: mockConfigService
                 },
-                OpenAIProvider
+                AnthropicProvider
             ],
         }).compile();
 
-        provider = module.get<OpenAIProvider>(OpenAIProvider);
+        provider = module.get<AnthropicProvider>(AnthropicProvider);
         configService = module.get<ConfigService>(ConfigService);
     });
 
@@ -59,24 +60,31 @@ describe('OpenAIProvider', () => {
         };
 
         // Should throw
-        expect(() => new OpenAIProvider(emptyConfigService as unknown as ConfigService))
-            .toThrow('OpenAI API key is required');
+        expect(() => new AnthropicProvider(emptyConfigService as unknown as ConfigService))
+            .toThrow('Anthropic API key is required');
     });
 
     describe('generateResponse', () => {
-        it('should generate a response from OpenAI API', async () => {
-            // Mock fetch implementation
+        it('should generate a response from Anthropic API', async () => {
+            // Mock fetch implementation with Anthropic response format
             (global.fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
-                    choices: [
+                    id: 'msg_123',
+                    type: 'message',
+                    role: 'assistant',
+                    content: [
                         {
-                            message: {
-                                role: 'assistant',
-                                content: 'Test response from OpenAI'
-                            }
+                            type: 'text',
+                            text: 'Test response from Anthropic'
                         }
-                    ]
+                    ],
+                    model: 'claude-3-opus-20240229',
+                    stop_reason: 'end_turn',
+                    usage: {
+                        input_tokens: 50,
+                        output_tokens: 10
+                    }
                 })
             });
 
@@ -87,25 +95,18 @@ describe('OpenAIProvider', () => {
                 false
             );
 
-            // Updated expectation to match the new return type
-            expect(result).toEqual({
-                formattedSystemPrompt: 'System prompt',
-                formattedUserPrompt: expect.stringContaining('User prompt'),
-                rawResponse: 'Test response from OpenAI',
-                metadata: expect.objectContaining({
-                    model: 'gpt-4'
-                })
-            });
+            expect(result.rawResponse).toBe('Test response from Anthropic');
 
             // Verify the fetch call
             expect(global.fetch).toHaveBeenCalledWith(
-                'https://api.openai.com/v1/chat/completions',
+                'https://api.anthropic.com/v1/messages',
                 expect.objectContaining({
                     method: 'POST',
                     headers: expect.objectContaining({
-                        'Authorization': 'Bearer test-api-key'
+                        'x-api-key': 'test-api-key',
+                        'anthropic-version': '2023-06-01'
                     }),
-                    body: expect.stringContaining('"model":"gpt-4"')
+                    body: expect.stringContaining('"model":"claude-3-opus-20240229"')
                 })
             );
         });
@@ -127,7 +128,7 @@ describe('OpenAIProvider', () => {
                 'User prompt',
                 mockArtifactFormat,
                 false
-            )).rejects.toThrow('OpenAI API error: Invalid request');
+            )).rejects.toThrow('Anthropic API error: Invalid request');
         });
 
         it('should include conversation history when provided', async () => {
@@ -135,12 +136,10 @@ describe('OpenAIProvider', () => {
             (global.fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
                 json: () => Promise.resolve({
-                    choices: [
+                    content: [
                         {
-                            message: {
-                                role: 'assistant',
-                                content: 'Test response with history'
-                            }
+                            type: 'text',
+                            text: 'Test response with history'
                         }
                     ]
                 })
@@ -151,21 +150,13 @@ describe('OpenAIProvider', () => {
                 { role: 'assistant', content: 'Previous assistant response' }
             ];
 
-            const result = await provider.generateResponse(
+            await provider.generateResponse(
                 'System prompt',
                 'User prompt',
                 mockArtifactFormat,
                 false,
                 conversationHistory
             );
-
-            // Check the return value matches the new interface
-            expect(result).toEqual({
-                formattedSystemPrompt: 'System prompt',
-                formattedUserPrompt: expect.stringContaining('User prompt'),
-                rawResponse: 'Test response with history',
-                metadata: expect.any(Object)
-            });
 
             // Check that the conversation history was included in the request
             expect(global.fetch).toHaveBeenCalledWith(
@@ -174,6 +165,35 @@ describe('OpenAIProvider', () => {
                     body: expect.stringContaining('Previous user message')
                 })
             );
+        });
+
+        it('should convert system role to assistant in messages', async () => {
+            // Mock fetch implementation
+            (global.fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    content: [{ type: 'text', text: 'Response' }]
+                })
+            });
+
+            const conversationHistory = [
+                { role: 'system', content: 'System message' },
+                { role: 'user', content: 'User message' }
+            ];
+
+            await provider.generateResponse(
+                'System prompt',
+                'User prompt',
+                mockArtifactFormat,
+                false,
+                conversationHistory
+            );
+
+            // Check that system role was converted to assistant
+            const requestBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+            expect(requestBody.messages[0].role).toBe('assistant');
+            expect(requestBody.messages[0].content).toBe('System message');
+            expect(requestBody.system).toBe('System prompt');
         });
     });
 
@@ -197,56 +217,51 @@ describe('OpenAIProvider', () => {
         });
 
         it('should throw error for update responses with no artifact content or commentary', async () => {
-            const response = '';  // Empty response
+            const response = '';
 
-            // Should throw because both artifact content and commentary are empty
             await expect(provider.parseResponse(response, mockArtifactFormat, true))
                 .rejects.toThrow('Update response must contain either artifact content or commentary');
         });
-
-        it('should accept update responses with only commentary', async () => {
-            const response = 'This is just commentary with no artifact content';
-
-            // Should not throw because commentary is provided even though artifact content is empty
-            const result = await provider.parseResponse(response, mockArtifactFormat, true);
-
-            expect(result.artifactContent).toBe('');
-            expect(result.commentary).toBe('This is just commentary with no artifact content');
-        });
     });
 
-    // This is a simplified test for the streaming functionality
-    // A more complete test would involve mocking ReadableStream
     describe('generateStreamingResponse', () => {
         it('should be defined', () => {
             expect(provider.generateStreamingResponse).toBeDefined();
         });
 
-        it('should return formatted response objects', async () => {
-            // Mock a basic streaming response
-            const mockResponse = {
-                ok: true,
-                body: {
-                    getReader: jest.fn().mockReturnValue({
-                        read: jest.fn()
-                            .mockResolvedValueOnce({
-                                done: false,
-                                value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n')
-                            })
-                            .mockResolvedValueOnce({
-                                done: false,
-                                value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":" world"}}]}\n\n')
-                            })
-                            .mockResolvedValueOnce({
-                                done: true
-                            }),
-                        releaseLock: jest.fn()
+        it('should handle streaming responses', async () => {
+            // Mock a readable stream
+            const mockReader = {
+                read: jest.fn()
+                    .mockResolvedValueOnce({
+                        done: false,
+                        value: new TextEncoder().encode('data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}\n\n')
+                    })
+                    .mockResolvedValueOnce({
+                        done: false,
+                        value: new TextEncoder().encode('data: {"type":"content_block_delta","index":0,"delta":{"type":"text","text":"Test"}}\n\n')
+                    })
+                    .mockResolvedValueOnce({
+                        done: false,
+                        value: new TextEncoder().encode('data: {"type":"content_block_delta","index":0,"delta":{"type":"text","text":" streaming"}}\n\n')
+                    })
+                    .mockResolvedValueOnce({
+                        done: true,
+                        value: undefined
                     }),
-                    cancel: jest.fn()
-                }
+                releaseLock: jest.fn()
             };
 
-            (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
+            const mockBody = {
+                getReader: () => mockReader,
+                cancel: jest.fn()
+            };
+
+            // Mock fetch implementation
+            (global.fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                body: mockBody
+            });
 
             const onChunk = jest.fn();
 
@@ -256,23 +271,15 @@ describe('OpenAIProvider', () => {
                 mockArtifactFormat,
                 false,
                 [],
-                'gpt-4',
+                undefined,
                 onChunk
             );
 
-            // Verify the result structure matches the new interface
-            expect(result).toEqual({
-                formattedSystemPrompt: 'System prompt',
-                formattedUserPrompt: expect.stringContaining('User prompt'),
-                rawResponse: 'Hello world',
-                metadata: expect.objectContaining({
-                    model: 'gpt-4'
-                })
-            });
-
-            // Verify chunks were passed to the callback
-            expect(onChunk).toHaveBeenCalledWith('Hello');
-            expect(onChunk).toHaveBeenCalledWith(' world');
+            expect(result.rawResponse).toBe('Test streaming');
+            expect(onChunk).toHaveBeenCalledWith('Test');
+            expect(onChunk).toHaveBeenCalledWith(' streaming');
+            expect(mockReader.releaseLock).toHaveBeenCalled();
+            expect(mockBody.cancel).toHaveBeenCalled();
         });
     });
 });

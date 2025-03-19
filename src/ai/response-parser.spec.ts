@@ -114,14 +114,47 @@ describe('Response Parser Utils', () => {
             expect(result).toEqual(extractedResponse);
         });
 
-        it('should throw error for update responses with no artifact content', () => {
+        it('should throw error for update responses with no content and no commentary', () => {
             const extractedResponse: AIModelResponse = {
                 rawResponse: 'raw response',
                 artifactContent: '',
-                commentary: 'commentary'
+                commentary: ''
             };
 
-            expect(() => validateAndFormatResponse(extractedResponse, true)).toThrow();
+            expect(() => validateAndFormatResponse(extractedResponse, true))
+                .toThrow('Update response must contain either artifact content or commentary');
+        });
+
+        it('should allow update responses with commentary but no artifact content', () => {
+            const extractedResponse: AIModelResponse = {
+                rawResponse: 'raw response',
+                artifactContent: '',
+                commentary: 'Some commentary'
+            };
+
+            // Should not throw
+            const result = validateAndFormatResponse(extractedResponse, true);
+            expect(result).toEqual({
+                rawResponse: 'raw response',
+                artifactContent: '',
+                commentary: 'Some commentary'
+            });
+        });
+
+        it('should allow update responses with artifact content but no commentary', () => {
+            const extractedResponse: AIModelResponse = {
+                rawResponse: 'raw response',
+                artifactContent: 'Updated content',
+                commentary: ''
+            };
+
+            // Should not throw
+            const result = validateAndFormatResponse(extractedResponse, true);
+            expect(result).toEqual({
+                rawResponse: 'raw response',
+                artifactContent: 'Updated content',
+                commentary: ''
+            });
         });
 
         it('should handle responses with missing fields', () => {

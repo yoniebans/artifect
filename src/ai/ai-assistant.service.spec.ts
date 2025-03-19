@@ -18,11 +18,21 @@ describe('AIAssistantService', () => {
     let aiProviderFactory: AIProviderFactory;
     let templateManager: TemplateManagerService;
 
-    // Mock provider implementation
+    // Mock provider implementation with updated interface
     const mockProvider: Partial<AIProviderInterface> = {
-        generateResponse: jest.fn(),
+        generateResponse: jest.fn().mockResolvedValue({
+            formattedSystemPrompt: 'Formatted system prompt',
+            formattedUserPrompt: 'Formatted user prompt',
+            rawResponse: 'Response from AI',
+            metadata: { model: 'test-model' }
+        }),
         parseResponse: jest.fn(),
-        generateStreamingResponse: jest.fn()
+        generateStreamingResponse: jest.fn().mockResolvedValue({
+            formattedSystemPrompt: 'Formatted system prompt',
+            formattedUserPrompt: 'Formatted user prompt',
+            rawResponse: 'Streaming response from AI',
+            metadata: { model: 'test-model' }
+        })
     };
 
     beforeEach(async () => {
@@ -83,8 +93,14 @@ describe('AIAssistantService', () => {
 
     describe('generateArtifact', () => {
         it('should generate an artifact using the default provider', async () => {
-            // Set up mock responses
-            (mockProvider.generateResponse as jest.Mock).mockResolvedValue('Response from AI');
+            // Set up mock responses with the new interface
+            (mockProvider.generateResponse as jest.Mock).mockResolvedValue({
+                formattedSystemPrompt: 'Formatted system prompt',
+                formattedUserPrompt: 'Formatted user prompt',
+                rawResponse: 'Response from AI',
+                metadata: { model: 'test-model' }
+            });
+
             (mockProvider.parseResponse as jest.Mock).mockResolvedValue({
                 rawResponse: 'Response from AI',
                 artifactContent: 'Artifact content',
@@ -135,7 +151,13 @@ describe('AIAssistantService', () => {
 
         it('should generate an artifact using a specified provider and model', async () => {
             // Set up mock responses
-            (mockProvider.generateResponse as jest.Mock).mockResolvedValue('Response from AI');
+            (mockProvider.generateResponse as jest.Mock).mockResolvedValue({
+                formattedSystemPrompt: 'Formatted system prompt',
+                formattedUserPrompt: 'Formatted user prompt',
+                rawResponse: 'Response from AI',
+                metadata: { model: 'gpt-4' }
+            });
+
             (mockProvider.parseResponse as jest.Mock).mockResolvedValue({
                 rawResponse: 'Response from AI',
                 artifactContent: 'Artifact content',
@@ -174,7 +196,13 @@ describe('AIAssistantService', () => {
 
         it('should handle user messages and update flag correctly', async () => {
             // Set up mock responses
-            (mockProvider.generateResponse as jest.Mock).mockResolvedValue('Response from AI');
+            (mockProvider.generateResponse as jest.Mock).mockResolvedValue({
+                formattedSystemPrompt: 'Formatted system prompt',
+                formattedUserPrompt: 'Formatted user prompt',
+                rawResponse: 'Response from AI',
+                metadata: { model: 'test-model' }
+            });
+
             (mockProvider.parseResponse as jest.Mock).mockResolvedValue({
                 rawResponse: 'Response from AI',
                 artifactContent: 'Updated content',
@@ -306,7 +334,13 @@ describe('AIAssistantService', () => {
     describe('generateStreamingArtifact', () => {
         it('should call the generateStreamingResponse method of the provider', async () => {
             // Set up mock responses
-            (mockProvider.generateStreamingResponse as jest.Mock).mockResolvedValue('Full response from AI');
+            (mockProvider.generateStreamingResponse as jest.Mock).mockResolvedValue({
+                formattedSystemPrompt: 'Formatted system prompt',
+                formattedUserPrompt: 'Formatted user prompt',
+                rawResponse: 'Full response from AI',
+                metadata: { model: 'test-model' }
+            });
+
             (mockProvider.parseResponse as jest.Mock).mockResolvedValue({
                 rawResponse: 'Full response from AI',
                 artifactContent: 'Artifact content',
