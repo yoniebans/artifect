@@ -1,4 +1,4 @@
-import { Artifact } from '@prisma/client';  
+import { Artifact } from '@prisma/client';
 import { ArtifactWithRelations } from '../types/artifact-with-relations';
 
 /**
@@ -10,6 +10,7 @@ export interface ContextData {
         [key: string]: any;
     };
     artifact: {
+        artifact_id: number;
         artifact_type_id: number;
         artifact_type_name: string;
         artifact_phase: string;

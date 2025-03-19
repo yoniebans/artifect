@@ -2,7 +2,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AIProviderInterface, AIMessage, AIModelResponse } from './interfaces/ai-provider.interface';
+import { AIProviderInterface, AIMessage, AIModelResponse, AIRequestResponse } from './interfaces/ai-provider.interface';
 import { ArtifactFormat } from '../templates/interfaces/template-manager.interface';
 import { extractContentAndCommentary, validateAndFormatResponse } from './response-parser';
 
@@ -136,7 +136,7 @@ ${artifactFormat.commentaryEndTag}`;
         isUpdate: boolean,
         conversationHistory: AIMessage[] = [],
         model?: string
-    ): Promise<string> {
+    ): Promise<AIRequestResponse> {
         const modelToUse = model || this.config.defaultModel;
 
         // Format the user prompt to include instructions about the response format
@@ -161,8 +161,8 @@ ${artifactFormat.commentaryEndTag}`;
             model: modelToUse,
             messages,
             system: systemPrompt,
-            temperature: 0.7,
-            max_tokens: 4000
+            temperature: 0.7, // TODO: Make this configurable
+            max_tokens: 4000 // TODO: Make this configurable
         };
 
         try {
@@ -187,7 +187,15 @@ ${artifactFormat.commentaryEndTag}`;
                 }
             }
 
-            return content;
+            return {
+                formattedUserPrompt,
+                formattedSystemPrompt: systemPrompt, // or format if needed
+                rawResponse: content,
+                metadata: {
+                    model: modelToUse,
+                    tokenUsage: data.usage  // If available from the API
+                }
+            };
         } catch (error) {
             throw new Error(`Failed to generate response: ${error.message}`);
         }
@@ -230,7 +238,7 @@ ${artifactFormat.commentaryEndTag}`;
         conversationHistory: AIMessage[] = [],
         model?: string,
         onChunk?: (chunk: string) => void
-    ): Promise<string> {
+    ): Promise<AIRequestResponse> {
         const modelToUse = model || this.config.defaultModel;
 
         // Format the user prompt to include instructions about the response format
@@ -321,7 +329,15 @@ ${artifactFormat.commentaryEndTag}`;
                 }
             }
 
-            return fullResponse;
+            return {
+                formattedUserPrompt,
+                formattedSystemPrompt: systemPrompt, // or format if needed
+                rawResponse: fullResponse,
+                metadata: {
+                    model: modelToUse,
+                    tokenUsage: 0
+                }
+            };
         } catch (error) {
             throw new Error(`Failed to generate streaming response: ${error.message}`);
         } finally {

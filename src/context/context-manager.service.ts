@@ -35,6 +35,7 @@ export class ContextManagerService implements ContextManagerInterface {
                 name: artifact.project?.name || 'Unknown Project',
             },
             artifact: {
+                artifact_id: artifact.id,
                 artifact_type_id: artifact.artifact_type?.id || artifact.artifactTypeId,
                 artifact_type_name: artifact.artifact_type?.name || 'Unknown Type',
                 artifact_phase: artifact.artifact_type?.lifecyclePhase?.name || 'Unknown Phase',

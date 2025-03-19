@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AIProviderFactory } from './ai-provider.factory';
-import { AIMessage } from './interfaces/ai-provider.interface';
+import { AIMessage, AIRequestResponse } from './interfaces/ai-provider.interface';
 import { TemplateManagerService } from '../templates/template-manager.service';
 
 /**
@@ -80,7 +80,7 @@ export class AIAssistantService {
                 : this.aiProviderFactory.getDefaultProvider();
 
             // Generate the response
-            const aiOutput = await provider.generateResponse(
+            const aiOutput: AIRequestResponse = await provider.generateResponse(
                 templateInput.systemPrompt,
                 templateInput.template,
                 templateInput.artifactFormat,
@@ -91,7 +91,7 @@ export class AIAssistantService {
 
             // Parse the response
             const parsedOutput = await provider.parseResponse(
-                aiOutput,
+                aiOutput.rawResponse,
                 templateInput.artifactFormat,
                 isUpdate
             );
@@ -172,7 +172,7 @@ export class AIAssistantService {
 
             // Parse the complete response
             const parsedOutput = await provider.parseResponse(
-                aiOutput,
+                aiOutput.rawResponse,
                 templateInput.artifactFormat,
                 isUpdate
             );
@@ -251,7 +251,7 @@ export class AIAssistantService {
      * 
      * @param context - The context data used for generation
      * @param templateInput - The template input used
-     * @param aiOutput - The raw AI output
+     * @param aiOutput - The AI Request Response object
      * @param parsedOutput - The parsed AI output
      * @param providerId - The ID of the AI provider used
      * @param model - The model name used
@@ -259,7 +259,7 @@ export class AIAssistantService {
     private writeLog(
         context: Record<string, any>,
         templateInput: any,
-        aiOutput: string,
+        aiOutput: AIRequestResponse,
         parsedOutput: any,
         providerId: string,
         model: string
@@ -267,7 +267,7 @@ export class AIAssistantService {
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const artifactType = context.artifact?.artifact_type_name?.toLowerCase().replace(/\s+/g, '_') || 'unknown';
-            const artifactId = context.artifact?.id || 'new';
+            const artifactId = context.artifact?.artifact_id || 'new';
 
             const filename = `${timestamp}_${artifactType}_${artifactId}.json`;
 
@@ -285,12 +285,15 @@ export class AIAssistantService {
                 },
                 ai_input: {
                     system_prompt: templateInput.systemPrompt,
+                    formatted_system_prompt: aiOutput.formattedSystemPrompt,
                     user_template: templateInput.template,
+                    formatted_user_template: aiOutput.formattedUserPrompt,
                     artifact_format: templateInput.artifactFormat
                 },
                 ai_output: {
-                    raw_response: aiOutput,
-                    parsed_response: parsedOutput
+                    raw_response: aiOutput.rawResponse,
+                    parsed_response: parsedOutput,
+                    metadata: aiOutput.metadata
                 }
             };
 

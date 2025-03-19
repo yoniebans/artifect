@@ -2,6 +2,18 @@
 
 import { ArtifactFormat } from '../../templates/interfaces/template-manager.interface';
 
+export interface AIRequestResponse {
+    // What was actually sent to the LLM (after formatting)
+    formattedSystemPrompt?: string;
+    formattedUserPrompt: string;
+
+    // What was received from the LLM
+    rawResponse: string;
+
+    // Additional metadata
+    metadata?: Record<string, any>;
+}
+
 /**
  * Response from an AI model
  */
@@ -59,7 +71,7 @@ export interface AIProviderInterface {
         isUpdate: boolean,
         conversationHistory?: AIMessage[],
         model?: string
-    ): Promise<string>;
+    ): Promise<AIRequestResponse>;
 
     /**
      * Parse the raw response from the AI model into structured components
@@ -95,5 +107,5 @@ export interface AIProviderInterface {
         conversationHistory?: AIMessage[],
         model?: string,
         onChunk?: (chunk: string) => void
-    ): Promise<string>;
+    ): Promise<AIRequestResponse>;
 }
