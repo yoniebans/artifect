@@ -89,12 +89,18 @@ export class AIAssistantService {
                 model
             );
 
-            // Parse the response
-            const parsedOutput = await provider.parseResponse(
-                aiOutput.rawResponse,
-                templateInput.artifactFormat,
-                isUpdate
-            );
+            // If the response already includes parsed content, use it directly
+            let parsedOutput;
+            if (aiOutput.parsedResponse) {
+                parsedOutput = aiOutput.parsedResponse;
+            } else {
+                // Otherwise parse the response
+                parsedOutput = await provider.parseResponse(
+                    aiOutput.rawResponse,
+                    templateInput.artifactFormat,
+                    isUpdate
+                );
+            }
 
             // Log the interaction
             this.writeLog(
@@ -170,12 +176,18 @@ export class AIAssistantService {
                 onChunk
             );
 
-            // Parse the complete response
-            const parsedOutput = await provider.parseResponse(
-                aiOutput.rawResponse,
-                templateInput.artifactFormat,
-                isUpdate
-            );
+            // If the response already includes parsed content, use it directly
+            let parsedOutput;
+            if (aiOutput.parsedResponse) {
+                parsedOutput = aiOutput.parsedResponse;
+            } else {
+                // Otherwise parse the complete response
+                parsedOutput = await provider.parseResponse(
+                    aiOutput.rawResponse,
+                    templateInput.artifactFormat,
+                    isUpdate
+                );
+            }
 
             // Log the interaction
             this.writeLog(

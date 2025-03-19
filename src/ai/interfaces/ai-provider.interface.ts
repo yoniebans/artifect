@@ -2,28 +2,18 @@
 
 import { ArtifactFormat } from '../../templates/interfaces/template-manager.interface';
 
-/**
- * Complete request and response data from an AI model interaction
- */
 export interface AIRequestResponse {
-    /**
-     * The formatted system prompt sent to the LLM
-     */
-    formattedSystemPrompt: string;
-    
-    /**
-     * The formatted user prompt sent to the LLM (with instructions and format directives)
-     */
+    // What was actually sent to the LLM (after formatting)
+    formattedSystemPrompt?: string;
     formattedUserPrompt: string;
-    
-    /**
-     * Raw response received from the AI model
-     */
+
+    // What was received from the LLM
     rawResponse: string;
-    
-    /**
-     * Additional metadata about the request/response
-     */
+
+    // Optionally include the parsed response if already available
+    parsedResponse?: AIModelResponse;
+
+    // Additional metadata
     metadata?: Record<string, any>;
 }
 
@@ -75,7 +65,7 @@ export interface AIProviderInterface {
      * @param isUpdate - Whether this is an update to an existing artifact
      * @param conversationHistory - Previous messages in the conversation
      * @param model - Model name/identifier to use
-     * @returns Complete data about the request and response
+     * @returns The AI model's response
      */
     generateResponse(
         systemPrompt: string,
@@ -110,7 +100,7 @@ export interface AIProviderInterface {
      * @param conversationHistory - Previous messages in the conversation
      * @param model - Model name/identifier to use
      * @param onChunk - Callback for each chunk of the streaming response
-     * @returns Complete data about the request and response after streaming is finished
+     * @returns The complete response after streaming is finished
      */
     generateStreamingResponse?(
         systemPrompt: string,
