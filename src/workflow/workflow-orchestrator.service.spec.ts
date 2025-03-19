@@ -284,6 +284,7 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(contextManager, 'getContext').mockResolvedValue({
                 project: { name: 'Test Project' },
                 artifact: {
+                    artifact_id: 1,
                     artifact_type_id: 1,
                     artifact_type_name: 'Vision Document',
                     artifact_phase: 'Requirements'
@@ -353,6 +354,7 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(contextManager, 'getContext').mockResolvedValue({
                 project: { name: 'Test Project' },
                 artifact: {
+                    artifact_id: 1,
                     artifact_type_id: 1,
                     artifact_type_name: 'Vision Document',
                     artifact_phase: 'Requirements',
