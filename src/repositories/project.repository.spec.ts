@@ -18,6 +18,7 @@ describe('ProjectRepository', () => {
                             create: jest.fn(),
                             findUnique: jest.fn(),
                             findMany: jest.fn(),
+                            findFirst: jest.fn(), // Add this missing method
                             update: jest.fn(),
                             delete: jest.fn(),
                         },
@@ -240,11 +241,11 @@ describe('ProjectRepository', () => {
                 ]
             };
 
-            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(mockProject);
+            (prismaService.project.findFirst as jest.Mock).mockResolvedValue(mockProject);
 
             const result = await repository.getProjectMetadata(projectId);
 
-            expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+            expect(prismaService.project.findFirst).toHaveBeenCalledWith({
                 where: { id: projectId },
                 include: {
                     artifacts: {
@@ -275,7 +276,7 @@ describe('ProjectRepository', () => {
         it('should return null if project not found', async () => {
             const projectId = 999;
 
-            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(null);
+            (prismaService.project.findFirst as jest.Mock).mockResolvedValue(null);
 
             const result = await repository.getProjectMetadata(projectId);
 
@@ -294,7 +295,7 @@ describe('ProjectRepository', () => {
                 artifacts: []
             };
 
-            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(mockProject);
+            (prismaService.project.findFirst as jest.Mock).mockResolvedValue(mockProject);
 
             const result = await repository.getProjectMetadata(projectId);
 
@@ -314,6 +315,13 @@ describe('ProjectRepository', () => {
             const phaseId = 1;
             const now = new Date();
 
+            const mockProject = {
+                id: projectId,
+                name: 'Test Project',
+                createdAt: now,
+                updatedAt: null
+            };
+
             const mockArtifacts = [
                 {
                     id: 1,
@@ -331,9 +339,14 @@ describe('ProjectRepository', () => {
                 }
             ];
 
+            (prismaService.project.findFirst as jest.Mock).mockResolvedValue(mockProject);
             (prismaService.artifact.findMany as jest.Mock).mockResolvedValue(mockArtifacts);
 
             const result = await repository.getPhaseArtifacts(projectId, phaseId);
+
+            expect(prismaService.project.findFirst).toHaveBeenCalledWith({
+                where: { id: projectId }
+            });
 
             expect(prismaService.artifact.findMany).toHaveBeenCalledWith({
                 where: {
@@ -369,6 +382,11 @@ describe('ProjectRepository', () => {
             const projectId = 1;
             const phaseId = 1;
 
+            const mockProject = {
+                id: projectId,
+                name: 'Test Project'
+            };
+
             const mockArtifacts = [
                 {
                     id: 1,
@@ -379,6 +397,7 @@ describe('ProjectRepository', () => {
                 }
             ];
 
+            (prismaService.project.findFirst as jest.Mock).mockResolvedValue(mockProject);
             (prismaService.artifact.findMany as jest.Mock).mockResolvedValue(mockArtifacts);
 
             const result = await repository.getPhaseArtifacts(projectId, phaseId);

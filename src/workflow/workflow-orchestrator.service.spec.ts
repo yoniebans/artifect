@@ -37,6 +37,7 @@ describe('WorkflowOrchestratorService', () => {
         name: 'Test Project',
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-02'),
+        userId: 1, // Add the userId field
     };
 
     // Mock artifact type
@@ -101,6 +102,7 @@ describe('WorkflowOrchestratorService', () => {
                         create: jest.fn(),
                         findById: jest.fn(),
                         findAll: jest.fn(),
+                        findByUserId: jest.fn(),
                         update: jest.fn(),
                         delete: jest.fn(),
                         getProjectMetadata: jest.fn(),
@@ -202,10 +204,10 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(projectRepository, 'create').mockResolvedValue(mockProject);
 
             // Execute
-            const result = await service.createProject('Test Project');
+            const result = await service.createProject('Test Project', 1);
 
             // Verify
-            expect(projectRepository.create).toHaveBeenCalledWith({ name: 'Test Project' });
+            expect(projectRepository.create).toHaveBeenCalledWith({ name: 'Test Project', userId: 1 });
             expect(result).toEqual({
                 project_id: '1',
                 name: 'Test Project',
@@ -225,6 +227,25 @@ describe('WorkflowOrchestratorService', () => {
 
             // Verify
             expect(projectRepository.findAll).toHaveBeenCalled();
+            expect(result).toEqual([{
+                project_id: '1',
+                name: 'Test Project',
+                created_at: mockProject.createdAt,
+                updated_at: mockProject.updatedAt,
+            }]);
+        });
+    });
+
+    describe('listProjectsByUser', () => {
+        it('should return a list of projects for a user', async () => {
+            // Setup
+            jest.spyOn(projectRepository, 'findByUserId').mockResolvedValue([mockProject]);
+
+            // Execute
+            const result = await service.listProjectsByUser(1);
+
+            // Verify
+            expect(projectRepository.findByUserId).toHaveBeenCalledWith(1);
             expect(result).toEqual([{
                 project_id: '1',
                 name: 'Test Project',
@@ -301,8 +322,8 @@ describe('WorkflowOrchestratorService', () => {
                 { id: 3, name: 'Approved' },
             ]);
 
-            // Execute
-            const result = await service.createArtifact(1, 'Vision Document');
+            // Execute - with user ID 1 (owner of the mock project)
+            const result = await service.createArtifact(1, 'Vision Document', 'openai', 'gpt-4o', 1);
 
             // Verify
             expect(projectRepository.findById).toHaveBeenCalledWith(1);
@@ -326,7 +347,15 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(projectRepository, 'findById').mockResolvedValue(null);
 
             // Execute & Verify
-            await expect(service.createArtifact(999, 'Vision Document')).rejects.toThrow(NotFoundException);
+            await expect(service.createArtifact(999, 'Vision Document', 'openai', 'gpt-4o', 1)).rejects.toThrow(NotFoundException);
+        });
+
+        it('should throw NotFoundException if user does not own the project', async () => {
+            // Setup
+            jest.spyOn(projectRepository, 'findById').mockResolvedValue(mockProject);
+
+            // Execute & Verify - using a different user ID than the project owner
+            await expect(service.createArtifact(1, 'Vision Document', 'openai', 'gpt-4o', 2)).rejects.toThrow(NotFoundException);
         });
 
         it('should throw Error if artifact type is invalid', async () => {
@@ -335,7 +364,7 @@ describe('WorkflowOrchestratorService', () => {
             jest.spyOn(artifactRepository, 'getArtifactTypeByName').mockResolvedValue(null);
 
             // Execute & Verify
-            await expect(service.createArtifact(1, 'Invalid Type')).rejects.toThrow('Invalid artifact type');
+            await expect(service.createArtifact(1, 'Invalid Type', 'openai', 'gpt-4o', 1)).rejects.toThrow('Invalid artifact type');
         });
     });
 

@@ -40,10 +40,14 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * Create a new project
    * 
    * @param projectName Name of the project
+   * @param userId ID of the user creating the project
    * @returns Project metadata
    */
-  async createProject(projectName: string): Promise<ProjectMetadata> {
-    const newProject = await this.projectRepository.create({ name: projectName });
+  async createProject(projectName: string, userId: number): Promise<ProjectMetadata> {
+    const newProject = await this.projectRepository.create({
+      name: projectName,
+      userId: userId
+    });
 
     return {
       project_id: String(newProject.id),
@@ -70,15 +74,38 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
   }
 
   /**
+   * List projects for a specific user
+   * 
+   * @param userId User ID
+   * @returns Array of project metadata
+   */
+  async listProjectsByUser(userId: number): Promise<ProjectMetadata[]> {
+    const projects = await this.projectRepository.findByUserId(userId);
+
+    return projects.map(project => ({
+      project_id: String(project.id),
+      name: project.name,
+      created_at: project.createdAt,
+      updated_at: project.updatedAt,
+    }));
+  }
+
+  /**
    * Get detailed view of a project with artifacts
    * 
    * @param projectId Project ID
+   * @param userId User ID (for authorization)
    * @returns Project details with artifacts
-   * @throws NotFoundException if project not found
+   * @throws NotFoundException if project not found or user doesn't own the project
    */
-  async viewProject(projectId: number): Promise<ProjectDetails> {
+  async viewProject(projectId: number, userId: number): Promise<ProjectDetails> {
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    // Check if the user has access to the project
+    if (project.userId !== userId) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
@@ -254,13 +281,19 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * Get detailed view of an artifact with chat history
    * 
    * @param artifactId Artifact ID
+   * @param userId User ID (for authorization)
    * @returns Artifact details with chat history
    * @throws NotFoundException if artifact not found
    */
-  async getArtifactDetails(artifactId: number): Promise<ArtifactDetails> {
+  async getArtifactDetails(artifactId: number, userId?: number): Promise<ArtifactDetails> {
     // Load the full artifact with all its relations
     const artifact = await this.loadArtifactWithRelations(artifactId);
     if (!artifact) {
+      throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+    }
+
+    // Check if the user has access to the project
+    if (userId !== undefined && artifact.project?.userId !== userId) {
       throw new NotFoundException(`Artifact with id ${artifactId} not found`);
     }
 
@@ -315,6 +348,7 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * @param artifactTypeName Type of artifact to create
    * @param providerId Optional AI provider ID
    * @param model Optional AI model name
+   * @param userId User ID (for authorization)
    * @returns Artifact details with initial AI message
    * @throws NotFoundException if project not found
    * @throws Error if artifact type invalid or already exists
@@ -323,10 +357,16 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     projectId: number,
     artifactTypeName: string,
     providerId?: string,
-    model?: string
+    model?: string,
+    userId?: number
   ): Promise<ArtifactDetails> {
     const project = await this.projectRepository.findById(projectId);
     if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+
+    // If userId is provided, check if the user has access to the project
+    if (userId !== undefined && project.userId !== userId) {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
@@ -453,6 +493,7 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * @param userMessage User message
    * @param providerId Optional AI provider ID
    * @param model Optional AI model name
+   * @param userId User ID (for authorization)
    * @returns Updated artifact details with AI response
    * @throws NotFoundException if artifact not found
    */
@@ -460,11 +501,17 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     artifactId: number,
     userMessage: string,
     providerId?: string,
-    model?: string
+    model?: string,
+    userId?: number
   ): Promise<ArtifactDetails> {
     // Load artifact with all its relations
     const artifact = await this.loadArtifactWithRelations(artifactId);
     if (!artifact) {
+      throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+    }
+
+    // If userId is provided, check if the user has access to the project
+    if (userId !== undefined && artifact.project?.userId !== userId) {
       throw new NotFoundException(`Artifact with id ${artifactId} not found`);
     }
 
@@ -578,6 +625,7 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
  * @param onChunk Callback for each chunk of the streaming response
  * @param providerId Optional AI provider ID
  * @param model Optional AI model name
+ * @param userId User ID (for authorization)
  * @returns Object containing the artifact content and commentary
  * @throws NotFoundException if artifact not found
  */
@@ -586,11 +634,17 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     userMessage: string,
     onChunk: (chunk: string) => void,
     providerId?: string,
-    model?: string
+    model?: string,
+    userId?: number
   ): Promise<{ artifactContent: string; commentary: string }> {
     // Load artifact with all its relations
     const artifact = await this.loadArtifactWithRelations(artifactId);
     if (!artifact) {
+      throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+    }
+
+    // If userId is provided, check if the user has access to the project
+    if (userId !== undefined && artifact.project?.userId !== userId) {
       throw new NotFoundException(`Artifact with id ${artifactId} not found`);
     }
 
@@ -678,14 +732,24 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * @param artifactId Artifact ID
    * @param name New name for the artifact
    * @param content New content for the artifact
+   * @param userId User ID (for authorization)
    * @returns Updated artifact
    * @throws NotFoundException if artifact not found
    */
   async updateArtifact(
     artifactId: number,
     name: string,
-    content: string
+    content: string,
+    userId?: number
   ): Promise<Artifact> {
+    // If userId is provided, check if the user has access to the artifact
+    if (userId !== undefined) {
+      const artifact = await this.loadArtifactWithRelations(artifactId);
+      if (!artifact || artifact.project?.userId !== userId) {
+        throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+      }
+    }
+
     const updatedArtifact = await this.artifactRepository.update(artifactId, {
       name,
       content,
@@ -703,17 +767,24 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * 
    * @param artifactId Artifact ID
    * @param newStateId ID of the new state
+   * @param userId User ID (for authorization)
    * @returns Artifact details after transition
    * @throws NotFoundException if artifact not found
    * @throws Error if state transition fails
    */
   async transitionArtifact(
     artifactId: number,
-    newStateId: number
+    newStateId: number,
+    userId?: number
   ): Promise<ArtifactDetails> {
     // Load the full artifact with relations
     const artifact = await this.loadArtifactWithRelations(artifactId);
     if (!artifact) {
+      throw new NotFoundException(`Artifact with id ${artifactId} not found`);
+    }
+
+    // If userId is provided, check if the user has access to the project
+    if (userId !== undefined && artifact.project?.userId !== userId) {
       throw new NotFoundException(`Artifact with id ${artifactId} not found`);
     }
 

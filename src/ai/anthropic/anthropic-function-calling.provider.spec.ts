@@ -204,7 +204,7 @@ describe('AnthropicFunctionCallingProvider', () => {
             // Verify tool_choice is set correctly for updates
             const requestBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
             expect(requestBody.tool_choice).toEqual({
-                type: 'tool_use',
+                type: 'tool',
                 name: 'generate_artifact_content'
             });
         });
