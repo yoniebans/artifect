@@ -1,9 +1,13 @@
 // src/api/controllers/project.controller.ts
 
-import { Controller, Get, Post, Body, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, NotFoundException, Req } from '@nestjs/common';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
 import { ProjectCreateDto, ProjectSummaryDto, ProjectDto } from '../dto';
 import { ApiCreateProject, ApiListProjects, ApiViewProject } from '../decorators/swagger.decorator';
+import { CurrentUser } from '../../auth/decorators/user.decorator';
+import { User } from '@prisma/client';
+import { Admin } from '../../auth/decorators/admin.decorator';
+import { RequestWithUser } from '../../auth/interfaces/request-with-user.interface';
 
 /**
  * Controller for project-related endpoints
@@ -15,37 +19,64 @@ export class ProjectController {
     /**
      * Create a new project
      * @param projectData Project creation data
+     * @param user Current authenticated user
      * @returns Created project summary
      */
     @Post('new')
     @ApiCreateProject()
-    async createProject(@Body() projectData: ProjectCreateDto): Promise<ProjectSummaryDto> {
-        // Use type assertion to handle the mismatch between ProjectMetadata and ProjectSummaryDto
-        const project = await this.workflowOrchestrator.createProject(projectData.name);
+    async createProject(
+        @Body() projectData: ProjectCreateDto,
+        @CurrentUser() user: User
+    ): Promise<ProjectSummaryDto> {
+        // Pass the user ID to associate the project with the user
+        const project = await this.workflowOrchestrator.createProject(
+            projectData.name,
+            user.id
+        );
         return project as unknown as ProjectSummaryDto;
     }
 
     /**
-     * List all projects
+     * List projects for the current user
+     * @param user Current authenticated user
      * @returns Array of project summaries
      */
     @Get()
     @ApiListProjects()
-    async listProjects(): Promise<ProjectSummaryDto[]> {
-        // Use type assertion to handle the mismatch between ProjectMetadata[] and ProjectSummaryDto[]
+    async listProjects(@CurrentUser() user: User): Promise<ProjectSummaryDto[]> {
+        // Only return projects associated with the current user
+        return this.workflowOrchestrator.listProjectsByUser(user.id) as unknown as ProjectSummaryDto[];
+    }
+
+    /**
+     * Admin endpoint to list all projects from all users
+     * @returns Array of project summaries
+     */
+    @Get('admin/all')
+    @Admin() // Use the Admin decorator to require admin privileges
+    @ApiListProjects()
+    async listAllProjects(): Promise<ProjectSummaryDto[]> {
+        // Admin can see all projects
         return this.workflowOrchestrator.listProjects() as unknown as ProjectSummaryDto[];
     }
 
     /**
      * Get detailed project information
      * @param projectId Project ID
+     * @param user Current authenticated user
      * @returns Project details with artifacts
      */
     @Get(':project_id')
     @ApiViewProject()
-    async viewProject(@Param('project_id') projectId: string): Promise<ProjectDto> {
+    async viewProject(
+        @Param('project_id') projectId: string,
+        @CurrentUser() user: User
+    ): Promise<ProjectDto> {
         try {
-            const projectData = await this.workflowOrchestrator.viewProject(Number(projectId));
+            const projectData = await this.workflowOrchestrator.viewProject(
+                Number(projectId),
+                user.id
+            );
 
             // Define the phase order mapping just like in the Python version
             const phaseOrder: Record<string, string> = {

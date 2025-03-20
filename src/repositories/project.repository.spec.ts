@@ -39,7 +39,7 @@ describe('ProjectRepository', () => {
 
     describe('create', () => {
         it('should create a project', async () => {
-            const projectData = { name: 'Test Project' };
+            const projectData = { name: 'Test Project', userId: 1 };
             const expectedProject = { id: 1, ...projectData, createdAt: new Date(), updatedAt: null };
 
             (prismaService.project.create as jest.Mock).mockResolvedValue(expectedProject);
