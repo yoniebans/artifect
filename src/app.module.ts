@@ -12,15 +12,17 @@ import { AIModule } from './ai/ai.module';
 import { ContextManagerModule } from './context/context-manager.module';
 import { WorkflowOrchestratorModule } from './workflow/workflow-orchestrator.module';
 import { ApiModule } from './api/api.module';
+import { AuthModule } from './auth/auth.module';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation.schema';
 import aiConfiguration from './ai/ai.config';
+import authConfiguration from './auth/auth.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [configuration, aiConfiguration],
+      load: [configuration, aiConfiguration, authConfiguration],
       validationSchema: validationSchema,
     }),
     CacheModule,
@@ -30,6 +32,7 @@ import aiConfiguration from './ai/ai.config';
     ContextManagerModule,
     WorkflowOrchestratorModule,
     ApiModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

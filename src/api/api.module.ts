@@ -8,17 +8,20 @@ import {
     ProjectController,
     ArtifactController,
     AIProviderController,
-    StreamingController
+    StreamingController,
+    UserController
 } from './controllers';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { SSEService } from './services/sse.service';
 import { AppService } from '../app.service';
+import { RepositoriesModule } from '../repositories/repositories.module';
 /**
  * Module for API Gateway
  */
 @Module({
     imports: [
         WorkflowOrchestratorModule,
+        RepositoriesModule,
     ],
     controllers: [
         HealthController,
@@ -26,6 +29,7 @@ import { AppService } from '../app.service';
         ArtifactController,
         AIProviderController,
         StreamingController,
+        UserController,
     ],
     providers: [
         {

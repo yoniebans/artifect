@@ -1,3 +1,5 @@
+// src/workflow/interfaces/workflow-orchestrator.interface.ts
+
 import { Artifact, ArtifactState, ArtifactVersion, Project } from '@prisma/client';
 import { AIMessage } from '../../ai/interfaces/ai-provider.interface';
 
@@ -73,9 +75,10 @@ export interface WorkflowOrchestratorInterface {
      * Create a new project
      * 
      * @param projectName Name of the project
+     * @param userId ID of the user creating the project
      * @returns Project metadata
      */
-    createProject(projectName: string): Promise<ProjectMetadata>;
+    createProject(projectName: string, userId: number): Promise<ProjectMetadata>;
 
     /**
      * List all projects
@@ -85,20 +88,30 @@ export interface WorkflowOrchestratorInterface {
     listProjects(): Promise<ProjectMetadata[]>;
 
     /**
+     * List projects for a specific user
+     * 
+     * @param userId User ID
+     * @returns Array of project metadata
+     */
+    listProjectsByUser(userId: number): Promise<ProjectMetadata[]>;
+
+    /**
      * Get detailed view of a project with artifacts
      * 
      * @param projectId Project ID
+     * @param userId User ID (for authorization)
      * @returns Project details with artifacts
      */
-    viewProject(projectId: number): Promise<ProjectDetails>;
+    viewProject(projectId: number, userId: number): Promise<ProjectDetails>;
 
     /**
      * Get detailed view of an artifact with chat history
      * 
      * @param artifactId Artifact ID
+     * @param userId User ID (for authorization)
      * @returns Artifact details with chat history
      */
-    getArtifactDetails(artifactId: number): Promise<ArtifactDetails>;
+    getArtifactDetails(artifactId: number, userId?: number): Promise<ArtifactDetails>;
 
     /**
      * Create a new artifact
@@ -107,13 +120,15 @@ export interface WorkflowOrchestratorInterface {
      * @param artifactTypeName Type of artifact to create
      * @param providerId Optional AI provider ID
      * @param model Optional AI model name
+     * @param userId User ID (for authorization)
      * @returns Artifact details with initial AI message
      */
     createArtifact(
         projectId: number,
         artifactTypeName: string,
         providerId?: string,
-        model?: string
+        model?: string,
+        userId?: number
     ): Promise<ArtifactDetails>;
 
     /**
@@ -123,13 +138,15 @@ export interface WorkflowOrchestratorInterface {
      * @param userMessage User message
      * @param providerId Optional AI provider ID
      * @param model Optional AI model name
+     * @param userId User ID (for authorization)
      * @returns Updated artifact details with AI response
      */
     interactArtifact(
         artifactId: number,
         userMessage: string,
         providerId?: string,
-        model?: string
+        model?: string,
+        userId?: number
     ): Promise<ArtifactDetails>;
 
     /**
@@ -140,6 +157,7 @@ export interface WorkflowOrchestratorInterface {
      * @param onChunk Callback for each chunk of the streaming response
      * @param providerId Optional AI provider ID
      * @param model Optional AI model name
+     * @param userId User ID (for authorization)
      * @returns Object containing the artifact content and commentary
      */
     streamInteractArtifact(
@@ -147,7 +165,8 @@ export interface WorkflowOrchestratorInterface {
         userMessage: string,
         onChunk: (chunk: string) => void,
         providerId?: string,
-        model?: string
+        model?: string,
+        userId?: number
     ): Promise<{ artifactContent: string; commentary: string }>;
 
     /**
@@ -156,12 +175,14 @@ export interface WorkflowOrchestratorInterface {
      * @param artifactId Artifact ID
      * @param name New name for the artifact
      * @param content New content for the artifact
+     * @param userId User ID (for authorization)
      * @returns Updated artifact
      */
     updateArtifact(
         artifactId: number,
         name: string,
-        content: string
+        content: string,
+        userId?: number
     ): Promise<Artifact>;
 
     /**
@@ -169,10 +190,12 @@ export interface WorkflowOrchestratorInterface {
      * 
      * @param artifactId Artifact ID
      * @param newStateId ID of the new state
+     * @param userId User ID (for authorization)
      * @returns Artifact details after transition
      */
     transitionArtifact(
         artifactId: number,
-        newStateId: number
+        newStateId: number,
+        userId?: number
     ): Promise<ArtifactDetails>;
 }

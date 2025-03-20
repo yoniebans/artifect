@@ -10,17 +10,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User entity
+model User {
+  id        Int      @id @default(autoincrement())
+  clerkId   String   @unique
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects    Project[]  
+}
+
 // Project entity
 model Project {
   id        Int       @id @default(autoincrement())
   name      String
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
+  userId    Int      // Add this field to link projects to users
   
   // Relationships
+  user      User       @relation(fields: [userId], references: [id])
   artifacts Artifact[]
 
   @@map("projects")
+  @@index([userId])
 }
 
 // Lifecycle phase (Requirements, Design, etc.)

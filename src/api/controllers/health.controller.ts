@@ -3,9 +3,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from '../../app.service';
 import { ApiHealthCheck } from '../decorators/swagger.decorator';
+import { Public } from '../../auth/decorators/public.decorator';
 
 /**
- * Controller for health check endpoint
+ * Controller for health check endpoint - should be publicly accessible
  */
 @Controller()
 export class HealthController {
@@ -16,6 +17,7 @@ export class HealthController {
      * @returns Health status object
      */
     @Get('health')
+    @Public()
     @ApiHealthCheck()
     getHealth() {
         return this.appService.getHealth();
