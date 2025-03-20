@@ -1,122 +1,76 @@
-// src/auth/guards/auth.guard.spec.ts
+// src/auth/guards/admin.guard.spec.ts
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthGuard } from './auth.guard';
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { AdminGuard } from './admin.guard';
 import { AuthService } from '../auth.service';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
-describe('AuthGuard', () => {
-    let guard: AuthGuard;
+describe('AdminGuard', () => {
+    let guard: AdminGuard;
     let authService: AuthService;
-    let reflector: Reflector;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
-                AuthGuard,
+                AdminGuard,
                 {
                     provide: AuthService,
                     useValue: {
-                        validateToken: jest.fn(),
-                    },
-                },
-                {
-                    provide: Reflector,
-                    useValue: {
-                        getAllAndOverride: jest.fn(),
+                        isAdmin: jest.fn(),
                     },
                 },
             ],
         }).compile();
 
-        guard = module.get<AuthGuard>(AuthGuard);
+        guard = module.get<AdminGuard>(AdminGuard);
         authService = module.get<AuthService>(AuthService);
-        reflector = module.get<Reflector>(Reflector);
     });
 
     it('should be defined', () => {
         expect(guard).toBeDefined();
     });
 
-    it('should allow access to public routes', async () => {
-        // Mock the reflector to indicate this is a public route
-        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
-
-        const context = createMockExecutionContext();
-        const result = await guard.canActivate(context);
-
-        expect(result).toBe(true);
-        expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
-            expect.any(Function),
-            expect.any(Function),
-        ]);
-        expect(authService.validateToken).not.toHaveBeenCalled();
-    });
-
-    it('should throw UnauthorizedException when no token provided', async () => {
-        // Mock the reflector to indicate this is not a public route
-        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-
+    it('should throw ForbiddenException when no user in request', async () => {
         const context = createMockExecutionContext(false);
 
-        await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-        expect(reflector.getAllAndOverride).toHaveBeenCalled();
-        expect(authService.validateToken).not.toHaveBeenCalled();
+        await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+        expect(authService.isAdmin).not.toHaveBeenCalled();
     });
 
-    it('should attach user to request and allow access when valid token provided', async () => {
-        // Mock the reflector to indicate this is not a public route
-        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+    it('should throw ForbiddenException when user is not admin', async () => {
+        const mockUser = { id: 1, email: 'user@example.com' };
+        const context = createMockExecutionContext(true, mockUser);
 
-        const mockUser = { id: 1, email: 'test@example.com' };
-        jest.spyOn(authService, 'validateToken').mockResolvedValue(mockUser as any);
+        // Mock auth service to indicate user is not an admin
+        jest.spyOn(authService, 'isAdmin').mockResolvedValue(false);
 
-        const mockRequest = {
-            headers: {
-                authorization: 'Bearer valid-token',
-            },
-            user: undefined,
-        };
+        await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+        expect(authService.isAdmin).toHaveBeenCalledWith(1);
+    });
 
-        const context = createMockExecutionContext(true, mockRequest);
+    it('should allow access when user is admin', async () => {
+        const mockUser = { id: 1, email: 'admin@example.com' };
+        const context = createMockExecutionContext(true, mockUser);
+
+        // Mock auth service to indicate user is an admin
+        jest.spyOn(authService, 'isAdmin').mockResolvedValue(true);
+
         const result = await guard.canActivate(context);
 
+        expect(authService.isAdmin).toHaveBeenCalledWith(1);
         expect(result).toBe(true);
-        expect(authService.validateToken).toHaveBeenCalledWith('valid-token');
-        expect(mockRequest.user).toEqual(mockUser);
-    });
-
-    it('should throw UnauthorizedException when token is invalid', async () => {
-        // Mock the reflector to indicate this is not a public route
-        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-
-        // Mock authService to throw an error
-        jest.spyOn(authService, 'validateToken').mockRejectedValue(new Error('Invalid token'));
-
-        const context = createMockExecutionContext(true);
-
-        await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-        expect(reflector.getAllAndOverride).toHaveBeenCalled();
-        expect(authService.validateToken).toHaveBeenCalled();
     });
 
     // Helper function to create a mock execution context
-    function createMockExecutionContext(withToken = false, mockRequestObj?: any) {
-        const mockRequest = mockRequestObj || {
-            headers: {
-                authorization: withToken ? 'Bearer valid-token' : undefined,
-            },
-            user: undefined,
+    function createMockExecutionContext(withUser = false, user: any = null) {
+        const mockRequest = {
+            user: withUser ? user : undefined,
         };
 
         const mockExecutionContext = {
             switchToHttp: jest.fn().mockReturnValue({
                 getRequest: jest.fn().mockReturnValue(mockRequest),
             }),
-            getHandler: jest.fn(),
-            getClass: jest.fn(),
         } as unknown as ExecutionContext;
 
         return mockExecutionContext;
