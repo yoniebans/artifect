@@ -3,6 +3,8 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from '../src/auth/guards/auth.guard';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -12,6 +14,12 @@ describe('AppController (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
+      // Override the global AuthGuard with a simple mock
+      .overrideProvider(APP_GUARD)
+      .useValue({ canActivate: () => true })
+      // You can completely disable the auth module by removing its guards
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();

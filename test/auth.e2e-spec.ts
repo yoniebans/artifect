@@ -177,8 +177,8 @@ describe('Authentication (e2e)', () => {
                 .expect(res => {
                     expect(Array.isArray(res.body)).toBe(true);
                     // Should include our test users
-                    expect(res.body.some(user => user.email === 'user@example.com')).toBe(true);
-                    expect(res.body.some(user => user.email === 'admin@example.com')).toBe(true);
+                    expect(res.body.some((user: User) => user.email === 'user@example.com')).toBe(true);
+                    expect(res.body.some((user: User) => user.email === 'admin@example.com')).toBe(true);
                 });
         });
     });

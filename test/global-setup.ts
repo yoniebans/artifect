@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+import { createTestUser } from './test-utils';
 
 /**
  * Global setup function run once before all tests
@@ -38,6 +39,11 @@ module.exports = async () => {
             console.error('❌ Failed to seed database:', error);
             throw error;
         }
+
+        // Create test user that will be used across all tests
+        console.log('👤 Creating shared test user...');
+        await createTestUser();
+        console.log('✅ Test user created');
 
         console.log('🚀 Test environment ready!');
     } catch (error) {
