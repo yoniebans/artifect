@@ -5,10 +5,23 @@ import { NotFoundException } from '@nestjs/common';
 import { ProjectController } from './project.controller';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
 import { ProjectCreateDto } from '../dto';
+import { User } from '@prisma/client';
 
 describe('ProjectController', () => {
     let controller: ProjectController;
     let workflowOrchestrator: WorkflowOrchestratorService;
+
+    // Mock user for testing
+    const mockUser: User = {
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -19,6 +32,7 @@ describe('ProjectController', () => {
                     useValue: {
                         createProject: jest.fn(),
                         listProjects: jest.fn(),
+                        listProjectsByUser: jest.fn(),
                         viewProject: jest.fn(),
                     },
                 },
@@ -50,10 +64,13 @@ describe('ProjectController', () => {
             // Use type assertion for mock implementation
             jest.spyOn(workflowOrchestrator, 'createProject').mockResolvedValue(expectedProject as any);
 
-            const result = await controller.createProject(projectCreateDto);
+            const result = await controller.createProject(projectCreateDto, mockUser);
 
             expect(result).toEqual(expectedProject);
-            expect(workflowOrchestrator.createProject).toHaveBeenCalledWith(projectCreateDto.name);
+            expect(workflowOrchestrator.createProject).toHaveBeenCalledWith(
+                projectCreateDto.name,
+                mockUser.id
+            );
         });
     });
 
@@ -75,12 +92,12 @@ describe('ProjectController', () => {
             ];
 
             // Use type assertion for mock implementation
-            jest.spyOn(workflowOrchestrator, 'listProjects').mockResolvedValue(expectedProjects as any);
+            jest.spyOn(workflowOrchestrator, 'listProjectsByUser').mockResolvedValue(expectedProjects as any);
 
-            const result = await controller.listProjects();
+            const result = await controller.listProjects(mockUser);
 
             expect(result).toEqual(expectedProjects);
-            expect(workflowOrchestrator.listProjects).toHaveBeenCalled();
+            expect(workflowOrchestrator.listProjectsByUser).toHaveBeenCalledWith(mockUser.id);
         });
     });
 
@@ -120,11 +137,11 @@ describe('ProjectController', () => {
             // Use type assertion for mock implementation
             jest.spyOn(workflowOrchestrator, 'viewProject').mockResolvedValue(mockProjectData as any);
 
-            const result = await controller.viewProject(projectId);
+            const result = await controller.viewProject(projectId, mockUser);
 
             expect(result).toHaveProperty('project_id', projectId);
             expect(result).toHaveProperty('phases');
-            expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId));
+            expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId), mockUser.id);
         });
 
         it('should handle not found error', async () => {
@@ -134,8 +151,8 @@ describe('ProjectController', () => {
                 new Error('Project with id 999 not found')
             );
 
-            await expect(controller.viewProject(projectId)).rejects.toThrow(NotFoundException);
-            expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId));
+            await expect(controller.viewProject(projectId, mockUser)).rejects.toThrow(NotFoundException);
+            expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId), mockUser.id);
         });
     });
 });

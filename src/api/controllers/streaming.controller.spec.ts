@@ -6,6 +6,7 @@ import { StreamingController } from './streaming.controller';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
 import { SSEService } from '../services/sse.service';
 import { ArtifactUpdateAIRequestDto, StreamingChunkDto } from '../dto';
+import { User } from '@prisma/client';
 
 describe('StreamingController', () => {
     let controller: StreamingController;
@@ -18,10 +19,22 @@ describe('StreamingController', () => {
     let mockSendToStream: jest.Mock;
     let mockCompleteStream: jest.Mock;
 
+    // Mock user for testing
+    const mockUser: User = {
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
+
     beforeEach(async () => {
         mockSubject = new Subject<StreamingChunkDto>();
         mockObservable = mockSubject.asObservable();
-        
+
         // Initialize the mocks with proper Jest typing
         mockStreamInteractArtifact = jest.fn().mockResolvedValue({
             artifactContent: 'Final content',
@@ -80,6 +93,7 @@ describe('StreamingController', () => {
             const result = controller.streamArtifactInteraction(
                 artifactId,
                 updateRequest,
+                mockUser,
                 'anthropic',
                 'claude-3'
             );
@@ -95,7 +109,8 @@ describe('StreamingController', () => {
                 updateRequest.messages[0].content,
                 expect.any(Function),
                 'anthropic',
-                'claude-3'
+                'claude-3',
+                mockUser.id
             );
         });
 
@@ -118,7 +133,8 @@ describe('StreamingController', () => {
             // Call the method
             controller.streamArtifactInteraction(
                 artifactId,
-                updateRequest
+                updateRequest,
+                mockUser
             );
 
             // Wait for the async process to complete
@@ -130,7 +146,8 @@ describe('StreamingController', () => {
                 updateRequest.messages[0].content,
                 expect.any(Function),
                 undefined,
-                undefined
+                undefined,
+                mockUser.id
             );
 
             // Verify error handling
@@ -163,7 +180,8 @@ describe('StreamingController', () => {
             // Call the method
             controller.streamArtifactInteraction(
                 artifactId,
-                updateRequest
+                updateRequest,
+                mockUser
             );
 
             // Wait for the async process to complete
@@ -175,12 +193,13 @@ describe('StreamingController', () => {
                 updateRequest.messages[0].content,
                 expect.any(Function),
                 undefined,
-                undefined
+                undefined,
+                mockUser.id
             );
 
             // Verify error handling
             expect(mockSendToStream).toHaveBeenCalledWith(
-                mockSubject, 
+                mockSubject,
                 expect.objectContaining({
                     chunk: expect.stringContaining('does not support streaming'),
                     done: true

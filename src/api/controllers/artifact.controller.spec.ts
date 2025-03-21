@@ -9,10 +9,23 @@ import {
     ArtifactUpdateDto,
     ArtifactUpdateAIRequestDto
 } from '../dto';
+import { User } from '@prisma/client';
 
 describe('ArtifactController', () => {
     let controller: ArtifactController;
     let workflowOrchestrator: WorkflowOrchestratorService;
+
+    // Mock user for testing
+    const mockUser: User = {
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
 
     const mockArtifactResponse = {
         artifact: {
@@ -81,14 +94,15 @@ describe('ArtifactController', () => {
             // Use type assertion to handle differences between interfaces
             jest.spyOn(workflowOrchestrator, 'createArtifact').mockResolvedValue(mockArtifactResponse as any);
 
-            const result = await controller.createArtifact(artifactCreateDto, 'anthropic', 'claude-3');
+            const result = await controller.createArtifact(artifactCreateDto, mockUser, 'anthropic', 'claude-3');
 
             expect(result).toEqual(mockArtifactResponse);
             expect(workflowOrchestrator.createArtifact).toHaveBeenCalledWith(
                 Number(artifactCreateDto.project_id),
                 artifactCreateDto.artifact_type_name,
                 'anthropic',
-                'claude-3'
+                'claude-3',
+                mockUser.id
             );
         });
 
@@ -102,7 +116,7 @@ describe('ArtifactController', () => {
                 new Error('Project with id 999 not found')
             );
 
-            await expect(controller.createArtifact(artifactCreateDto)).rejects.toThrow(NotFoundException);
+            await expect(controller.createArtifact(artifactCreateDto, mockUser)).rejects.toThrow(NotFoundException);
         });
 
         it('should handle bad request error', async () => {
@@ -115,7 +129,7 @@ describe('ArtifactController', () => {
                 new Error('Invalid artifact type: Invalid Type')
             );
 
-            await expect(controller.createArtifact(artifactCreateDto)).rejects.toThrow(BadRequestException);
+            await expect(controller.createArtifact(artifactCreateDto, mockUser)).rejects.toThrow(BadRequestException);
         });
     });
 
@@ -130,19 +144,20 @@ describe('ArtifactController', () => {
             // Mock the basic artifact update first
             const mockUpdatedArtifact = { id: 1, name: 'Updated Artifact' };
             jest.spyOn(workflowOrchestrator, 'updateArtifact').mockResolvedValue(mockUpdatedArtifact as any);
-            
+
             // Then separately mock getting the full details
             jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse as any);
 
-            const result = await controller.updateArtifact(artifactId, updateDto);
+            const result = await controller.updateArtifact(artifactId, updateDto, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
             expect(workflowOrchestrator.updateArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
                 updateDto.name,
-                updateDto.content
+                updateDto.content,
+                mockUser.id
             );
-            expect(workflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(Number(artifactId));
+            expect(workflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(Number(artifactId), mockUser.id);
         });
     });
 
@@ -153,10 +168,10 @@ describe('ArtifactController', () => {
             // Mock the getArtifactDetails method
             jest.spyOn(workflowOrchestrator, 'getArtifactDetails').mockResolvedValue(mockArtifactResponse as any);
 
-            const result = await controller.viewArtifact(artifactId);
+            const result = await controller.viewArtifact(artifactId, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
-            expect(workflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(Number(artifactId));
+            expect(workflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(Number(artifactId), mockUser.id);
         });
 
         it('should handle not found error', async () => {
@@ -166,7 +181,7 @@ describe('ArtifactController', () => {
                 new Error('Artifact with id 999 not found')
             );
 
-            await expect(controller.viewArtifact(artifactId)).rejects.toThrow(NotFoundException);
+            await expect(controller.viewArtifact(artifactId, mockUser)).rejects.toThrow(NotFoundException);
         });
     });
 
@@ -188,6 +203,7 @@ describe('ArtifactController', () => {
             const result = await controller.interactArtifact(
                 artifactId,
                 updateRequest,
+                mockUser,
                 'anthropic',
                 'claude-3'
             );
@@ -197,7 +213,8 @@ describe('ArtifactController', () => {
                 Number(artifactId),
                 updateRequest.messages[0].content,
                 'anthropic',
-                'claude-3'
+                'claude-3',
+                mockUser.id
             );
         });
     });
@@ -210,12 +227,13 @@ describe('ArtifactController', () => {
             // Mock the transitionArtifact method
             jest.spyOn(workflowOrchestrator, 'transitionArtifact').mockResolvedValue(mockArtifactResponse as any);
 
-            const result = await controller.updateArtifactState(artifactId, stateId);
+            const result = await controller.updateArtifactState(artifactId, stateId, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
             expect(workflowOrchestrator.transitionArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
-                Number(stateId)
+                Number(stateId),
+                mockUser.id
             );
         });
 
@@ -227,7 +245,7 @@ describe('ArtifactController', () => {
                 new Error('Invalid state transition')
             );
 
-            await expect(controller.updateArtifactState(artifactId, stateId)).rejects.toThrow(BadRequestException);
+            await expect(controller.updateArtifactState(artifactId, stateId, mockUser)).rejects.toThrow(BadRequestException);
         });
     });
 });
