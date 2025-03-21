@@ -15,6 +15,8 @@ import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrato
 import { ArtifactUpdateAIRequestDto, StreamingChunkDto } from '../dto';
 import { SSEService } from '../services/sse.service';
 import { ApiStreamingInteractArtifact } from '../decorators/streaming-swagger.decorator';
+import { CurrentUser } from '../../auth/decorators/user.decorator';
+import { User } from '@prisma/client';
 
 /**
  * Controller for streaming endpoints
@@ -30,6 +32,7 @@ export class StreamingController {
      * Stream interaction with an artifact using AI
      * @param artifactId Artifact ID
      * @param updateRequest AI update request
+     * @param user Current authenticated user
      * @param aiProvider AI provider from header
      * @param aiModel AI model from header
      * @returns Observable stream of response chunks
@@ -40,6 +43,7 @@ export class StreamingController {
     streamArtifactInteraction(
         @Param('artifact_id') artifactId: string,
         @Body() updateRequest: ArtifactUpdateAIRequestDto,
+        @CurrentUser() user: User,
         @Headers('X-AI-Provider') aiProvider?: string,
         @Headers('X-AI-Model') aiModel?: string
     ): Observable<StreamingChunkDto> {
@@ -56,7 +60,8 @@ export class StreamingController {
                         this.sseService.sendToStream(subject, { chunk });
                     },
                     aiProvider,
-                    aiModel
+                    aiModel,
+                    user.id // Pass the user ID
                 );
 
                 // Send final message with complete content

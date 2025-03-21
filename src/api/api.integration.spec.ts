@@ -7,9 +7,19 @@ import { HealthController } from './controllers/health.controller';
 import { ProjectController } from './controllers/project.controller';
 import { ArtifactController } from './controllers/artifact.controller';
 import { AIProviderController } from './controllers/ai-provider.controller';
+import { StreamingController } from './controllers/streaming.controller';
+import { UserController } from './controllers/user.controller';
 import { AppService } from '../app.service';
 import { WorkflowOrchestratorService } from '../workflow/workflow-orchestrator.service';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { SSEService } from './services/sse.service';
+import { APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { AuthService } from '../auth/auth.service';
+import { ClerkService } from '../auth/clerk.service';
+import { UserRepository } from '../repositories/user.repository';
+import { LoggingInterceptor } from './interceptors/logging.interceptor';
 
 // Create mock implementations for dependencies
 const mockAppService = {
@@ -19,6 +29,7 @@ const mockAppService = {
 const mockWorkflowOrchestrator = {
     createProject: jest.fn(),
     listProjects: jest.fn(),
+    listProjectsByUser: jest.fn(), // Add this method for user-specific projects
     viewProject: jest.fn(),
     getArtifactDetails: jest.fn(),
     createArtifact: jest.fn(),
@@ -27,21 +38,118 @@ const mockWorkflowOrchestrator = {
     transitionArtifact: jest.fn(),
 };
 
+// Mock the AuthService
+const mockAuthService = {
+    validateToken: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    isAdmin: jest.fn().mockResolvedValue(false),
+};
+
+// Mock the ClerkService
+const mockClerkService = {
+    verifyToken: jest.fn().mockResolvedValue({ sub: 'test_clerk_id' }),
+    getUserDetails: jest.fn().mockResolvedValue({
+        id: 'test_clerk_id',
+        email_addresses: [{ email_address: 'test@example.com' }],
+        first_name: 'Test',
+        last_name: 'User'
+    }),
+};
+
+// Mock the UserRepository
+const mockUserRepository = {
+    findByClerkId: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    findById: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    create: jest.fn(),
+    findAll: jest.fn(),
+    updateAdminStatus: jest.fn(),
+};
+
+// Create a mock Reflector
+const mockReflector = {
+    getAllAndOverride: jest.fn((key) => {
+        // For testing, mark the health endpoint as public, everything else as protected
+        if (key === 'isPublic') {
+            return true; // Consider all routes public for testing
+        }
+        return false;
+    }),
+};
+
 describe('API Integration Tests', () => {
     let app: INestApplication;
 
     beforeAll(async () => {
-        // Create a test module with only the controllers we need to test
+        // Create a test module with controllers and necessary mocks
         const moduleFixture: TestingModule = await Test.createTestingModule({
             controllers: [
                 HealthController,
                 ProjectController,
                 ArtifactController,
-                AIProviderController
+                AIProviderController,
+                StreamingController,
+                UserController
             ],
             providers: [
                 { provide: AppService, useValue: mockAppService },
-                { provide: WorkflowOrchestratorService, useValue: mockWorkflowOrchestrator }
+                { provide: WorkflowOrchestratorService, useValue: mockWorkflowOrchestrator },
+                { provide: SSEService, useClass: SSEService },
+                { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+
+                // Auth related mocks
+                { provide: AuthService, useValue: mockAuthService },
+                { provide: ClerkService, useValue: mockClerkService },
+                { provide: UserRepository, useValue: mockUserRepository },
+                { provide: Reflector, useValue: mockReflector },
+
+                // Override the auth guard with a testing version
+                {
+                    provide: APP_GUARD,
+                    useValue: {
+                        canActivate: jest.fn().mockImplementation((context) => {
+                            // Mock user in the request
+                            const req = context.switchToHttp().getRequest();
+                            req.user = {
+                                id: 1,
+                                clerkId: 'test_clerk_id',
+                                email: 'test@example.com',
+                                firstName: 'Test',
+                                lastName: 'User',
+                                isAdmin: false
+                            };
+                            return true; // Allow all requests
+                        }),
+                    },
+                },
+
+                // Add the AdminGuard for completeness
+                AdminGuard
             ],
         }).compile();
 
@@ -83,7 +191,6 @@ describe('API Integration Tests', () => {
         });
     });
 
-    // Continue with the existing tests, but configure the mock responses appropriately
     describe('Project Endpoints', () => {
         let projectId: string;
 
@@ -92,7 +199,8 @@ describe('API Integration Tests', () => {
             const createdProject = {
                 project_id: '1',
                 name: 'Test Project',
-                // Don't specify the created_at or updated_at fields for comparison
+                created_at: new Date(),
+                updated_at: null
             };
 
             mockWorkflowOrchestrator.createProject.mockResolvedValue({
@@ -113,13 +221,16 @@ describe('API Integration Tests', () => {
             expect(response.body).toHaveProperty('created_at');
             expect(response.body).toHaveProperty('updated_at');
 
-            expect(mockWorkflowOrchestrator.createProject).toHaveBeenCalledWith(projectData.name);
+            expect(mockWorkflowOrchestrator.createProject).toHaveBeenCalledWith(
+                projectData.name,
+                1 // Check that the user ID was passed
+            );
 
             // Store the project ID for later tests
             projectId = response.body.project_id;
         });
 
-        it('GET /project - should list all projects', async () => {
+        it('GET /project - should list projects for the current user', async () => {
             const projects = [
                 {
                     project_id: '1',
@@ -129,7 +240,7 @@ describe('API Integration Tests', () => {
                 }
             ];
 
-            mockWorkflowOrchestrator.listProjects.mockResolvedValue(projects);
+            mockWorkflowOrchestrator.listProjectsByUser.mockResolvedValue(projects);
 
             const response = await request(app.getHttpServer())
                 .get('/project')
@@ -138,6 +249,7 @@ describe('API Integration Tests', () => {
             expect(Array.isArray(response.body)).toBe(true);
             expect(response.body.length).toBeGreaterThan(0);
             expect(response.body[0]).toHaveProperty('name', 'Project for List Test');
+            expect(mockWorkflowOrchestrator.listProjectsByUser).toHaveBeenCalledWith(1);
         });
 
         it('GET /project/:id - should return project details', async () => {
@@ -159,7 +271,10 @@ describe('API Integration Tests', () => {
                 .expect(200);
 
             expect(response.body).toHaveProperty('project_id');
-            expect(mockWorkflowOrchestrator.viewProject).toHaveBeenCalled();
+            expect(mockWorkflowOrchestrator.viewProject).toHaveBeenCalledWith(
+                Number(projectId || '1'),
+                1 // Check that the user ID was passed
+            );
         });
 
         it('GET /project/:id - should handle not found', async () => {
@@ -209,7 +324,13 @@ describe('API Integration Tests', () => {
 
             expect(response.body).toHaveProperty('artifact');
             expect(response.body.artifact).toHaveProperty('artifact_id');
-            expect(mockWorkflowOrchestrator.createArtifact).toHaveBeenCalled();
+            expect(mockWorkflowOrchestrator.createArtifact).toHaveBeenCalledWith(
+                Number(artifactData.project_id),
+                artifactData.artifact_type_name,
+                'anthropic',
+                'claude-3-opus-20240229',
+                1 // Check that the user ID was passed
+            );
 
             // Save artifact ID for future tests
             artifactId = response.body.artifact.artifact_id;
@@ -239,6 +360,10 @@ describe('API Integration Tests', () => {
 
             expect(response.body).toHaveProperty('artifact');
             expect(response.body.artifact).toHaveProperty('artifact_id');
+            expect(mockWorkflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(
+                Number(artifactId || '1'),
+                1 // Check that the user ID was passed
+            );
         });
 
         it('PUT /artifact/:id - should update an artifact', async () => {
@@ -277,8 +402,16 @@ describe('API Integration Tests', () => {
                 .expect(200);
 
             expect(response.body.artifact).toHaveProperty('name', 'Updated Artifact Name');
-            expect(mockWorkflowOrchestrator.updateArtifact).toHaveBeenCalled();
-            expect(mockWorkflowOrchestrator.getArtifactDetails).toHaveBeenCalled();
+            expect(mockWorkflowOrchestrator.updateArtifact).toHaveBeenCalledWith(
+                Number(artifactId || '1'),
+                updateData.name,
+                updateData.content,
+                1 // Check that the user ID was passed
+            );
+            expect(mockWorkflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(
+                Number(artifactId || '1'),
+                1 // Check that the user ID was passed
+            );
         });
 
         it('PUT /artifact/:id/ai - should interact with an artifact', async () => {
@@ -322,7 +455,13 @@ describe('API Integration Tests', () => {
             expect(response.body).toHaveProperty('artifact');
             expect(response.body).toHaveProperty('chat_completion');
             expect(response.body.chat_completion).toHaveProperty('messages');
-            expect(mockWorkflowOrchestrator.interactArtifact).toHaveBeenCalled();
+            expect(mockWorkflowOrchestrator.interactArtifact).toHaveBeenCalledWith(
+                Number(artifactId || '1'),
+                interactionPayload.messages[0].content,
+                'anthropic',
+                undefined,
+                1 // Check that the user ID was passed
+            );
         });
 
         it('PUT /artifact/:id/state/:state_id - should update artifact state', async () => {
@@ -350,7 +489,11 @@ describe('API Integration Tests', () => {
                 .expect(200);
 
             expect(response.body.artifact).toHaveProperty('state_id', stateId);
-            expect(mockWorkflowOrchestrator.transitionArtifact).toHaveBeenCalled();
+            expect(mockWorkflowOrchestrator.transitionArtifact).toHaveBeenCalledWith(
+                Number(artifactId || '1'),
+                Number(stateId),
+                1 // Check that the user ID was passed
+            );
         });
     });
 

@@ -7,6 +7,10 @@ import { StreamingController } from './controllers/streaming.controller';
 import { SSEService } from './services/sse.service';
 import { WorkflowOrchestratorService } from '../workflow/workflow-orchestrator.service';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import { AuthService } from '../auth/auth.service';
+import { ClerkService } from '../auth/clerk.service';
+import { UserRepository } from '../repositories/user.repository';
 
 // Create properly typed mock function
 const mockStreamInteractArtifact = jest.fn();
@@ -14,6 +18,60 @@ const mockStreamInteractArtifact = jest.fn();
 // Create mock implementations for dependencies with our typed mock
 const mockWorkflowOrchestrator = {
     streamInteractArtifact: mockStreamInteractArtifact
+};
+
+// Mock auth-related services
+const mockAuthService = {
+    validateToken: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    isAdmin: jest.fn().mockResolvedValue(false),
+};
+
+const mockClerkService = {
+    verifyToken: jest.fn().mockResolvedValue({ sub: 'test_clerk_id' }),
+    getUserDetails: jest.fn().mockResolvedValue({
+        id: 'test_clerk_id',
+        email_addresses: [{ email_address: 'test@example.com' }],
+        first_name: 'Test',
+        last_name: 'User'
+    }),
+};
+
+const mockUserRepository = {
+    findByClerkId: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    findById: jest.fn().mockResolvedValue({
+        id: 1,
+        clerkId: 'test_clerk_id',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }),
+    create: jest.fn()
+};
+
+// Create a mock Reflector
+const mockReflector = {
+    getAllAndOverride: jest.fn().mockReturnValue(true), // Consider all routes public for testing
 };
 
 describe('Streaming API Integration Tests', () => {
@@ -44,7 +102,32 @@ describe('Streaming API Integration Tests', () => {
                 {
                     provide: WorkflowOrchestratorService,
                     useValue: mockWorkflowOrchestrator
-                }
+                },
+                // Auth related mocks
+                { provide: AuthService, useValue: mockAuthService },
+                { provide: ClerkService, useValue: mockClerkService },
+                { provide: UserRepository, useValue: mockUserRepository },
+                { provide: Reflector, useValue: mockReflector },
+
+                // Override the auth guard with a testing version
+                {
+                    provide: APP_GUARD,
+                    useValue: {
+                        canActivate: jest.fn().mockImplementation((context) => {
+                            // Mock user in the request
+                            const req = context.switchToHttp().getRequest();
+                            req.user = {
+                                id: 1,
+                                clerkId: 'test_clerk_id',
+                                email: 'test@example.com',
+                                firstName: 'Test',
+                                lastName: 'User',
+                                isAdmin: false
+                            };
+                            return true; // Allow all requests
+                        }),
+                    },
+                },
             ],
         }).compile();
 
@@ -98,7 +181,8 @@ describe('Streaming API Integration Tests', () => {
                 'Update the vision document with streaming',
                 expect.any(Function),
                 undefined,
-                undefined
+                undefined,
+                1 // Check that the user ID was passed
             );
         }, 15000); // Keep increased timeout for streaming
 
