@@ -6,6 +6,7 @@ import { ProjectController } from './project.controller';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
 import { ProjectCreateDto } from '../dto';
 import { User } from '@prisma/client';
+import { AuthService } from '../../auth/auth.service';
 
 describe('ProjectController', () => {
     let controller: ProjectController;
@@ -36,8 +37,18 @@ describe('ProjectController', () => {
                         viewProject: jest.fn(),
                     },
                 },
+                {
+                    provide: AuthService,
+                    useValue: {
+                        validateToken: jest.fn(),
+                        isAdmin: jest.fn().mockResolvedValue(false),
+                    },
+                },
             ],
-        }).compile();
+        })
+            .overrideGuard('AdminGuard')
+            .useValue({ canActivate: () => true })
+            .compile();
 
         controller = module.get<ProjectController>(ProjectController);
         workflowOrchestrator = module.get<WorkflowOrchestratorService>(WorkflowOrchestratorService);
