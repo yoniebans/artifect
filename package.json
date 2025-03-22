@@ -1,8 +1,15 @@
 {
-  "name": "ai-se-platform",
+  "name": "artifect-backend",
   "version": "0.1.0",
-  "description": "AI-Assisted Software Engineering Platform",
-  "author": "",
+  "description": "AI-Assisted Artifact Engineering Backend",
+  "keywords": [
+    "artificial",
+    "architect",
+    "artif-ect",
+    "artifact",
+    "ai"
+  ],
+  "author": "yoniebans",
   "private": true,
   "license": "UNLICENSED",
   "prisma": {

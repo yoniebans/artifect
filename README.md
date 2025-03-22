@@ -1,6 +1,6 @@
-# AI-Assisted Artifact Engineering Platform
+# AI-Assisted Artifact Engineering Backend
 
-This is a NestJS implementation of the AI-Assisted Artifact Engineering Platform with Prisma ORM.
+This is a NestJS implementation of the AI-Assisted Artifact Engineering Backend with Prisma ORM.
 
 ## Prerequisites
 
