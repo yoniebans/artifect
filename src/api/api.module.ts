@@ -15,6 +15,8 @@ import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { SSEService } from './services/sse.service';
 import { AppService } from '../app.service';
 import { RepositoriesModule } from '../repositories/repositories.module';
+import { AuthModule } from '../auth/auth.module';
+
 /**
  * Module for API Gateway
  */
@@ -22,6 +24,7 @@ import { RepositoriesModule } from '../repositories/repositories.module';
     imports: [
         WorkflowOrchestratorModule,
         RepositoriesModule,
+        AuthModule, // Import AuthModule to access AuthService
     ],
     controllers: [
         HealthController,
