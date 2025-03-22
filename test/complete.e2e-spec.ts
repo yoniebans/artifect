@@ -5,30 +5,26 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/api/filters/http-exception.filter';
-import { ConfigService } from '@nestjs/config';
-import dotenv from 'dotenv';
+import { createAuthenticatedTestUser, AuthTestData } from './test-utils';
 
 /**
  * True End-to-End Test with Real Clerk Authentication
  * 
  * IMPORTANT: This test requires:
- * 1. A valid .env.e2e file with the following variables:
- *    - CLERK_API_KEY - Your Clerk API key
+ * 1. A valid .env.test file with the following variables:
  *    - CLERK_SECRET_KEY - Your Clerk secret key
- *    - TEST_USER_ID - ID of a test user in your Clerk instance
- *    - TEST_USER_TOKEN - A valid JWT for your test user
+ *    - TEST_USER_CLERK_ID - ID of a test user in your Clerk instance
+ *    - TEST_USER_EMAIL - Email matching your Clerk user (optional)
  * 
- * 2. You may need to create a separate Clerk development/test instance
- *    to avoid interference with your production environment
+ * 2. The @clerk/clerk-sdk-node package must be installed:
+ *    npm install @clerk/clerk-sdk-node
  * 
  * To run only this test:
  * npm run test:e2e -- complete
  */
 describe('Complete E2E Test with Real Auth', () => {
     let app: INestApplication;
-    let config: ConfigService;
-    // This test uses actual tokens, so we'll need to load them from environment
-    let testUserToken: string | undefined;
+    let authData: AuthTestData;
     let projectId: string;
 
     // This is a complete E2E test that should only run when explicitly called
@@ -41,14 +37,13 @@ describe('Complete E2E Test with Real Auth', () => {
             return;
         }
 
-        // Load environment variables from .env.e2e
-        dotenv.config({ path: '.env.e2e' });
-
-        // Get test token from environment
-        testUserToken = process.env.TEST_USER_TOKEN;
-
-        if (!testUserToken) {
-            console.error('TEST_USER_TOKEN not found in environment variables');
+        try {
+            // Create authenticated test user with Clerk token
+            authData = await createAuthenticatedTestUser();
+            console.log(`Using test user with ID: ${authData.user.id} and valid Clerk token`);
+        } catch (error) {
+            console.error('Failed to set up authenticated test user:', error);
+            // Don't exit process, let Jest handle the failure
             return;
         }
 
@@ -68,8 +63,6 @@ describe('Complete E2E Test with Real Auth', () => {
         );
         app.useGlobalFilters(new HttpExceptionFilter());
 
-        config = app.get<ConfigService>(ConfigService);
-
         await app.init();
     });
 
@@ -81,12 +74,14 @@ describe('Complete E2E Test with Real Auth', () => {
 
     // Skip all tests if environment variables are not set
     beforeEach(() => {
-        if (shouldSkipTests || !testUserToken) {
-            console.log('Skipping complete E2E test due to missing environment variables');
+        if (shouldSkipTests || !authData?.token) {
+            console.log('Skipping complete E2E test due to missing authentication data');
         }
     });
 
     it('GET /health - should work without authentication', async () => {
+        if (shouldSkipTests || !authData) return;
+
         const response = await request(app.getHttpServer())
             .get('/health');
 
@@ -95,6 +90,8 @@ describe('Complete E2E Test with Real Auth', () => {
     });
 
     it('GET /project - should fail without authentication', async () => {
+        if (shouldSkipTests || !authData) return;
+
         const response = await request(app.getHttpServer())
             .get('/project');
 
@@ -102,29 +99,35 @@ describe('Complete E2E Test with Real Auth', () => {
     });
 
     it('GET /project - should work with valid authentication', async () => {
+        if (shouldSkipTests || !authData) return;
+
         const response = await request(app.getHttpServer())
             .get('/project')
-            .set('Authorization', `Bearer ${testUserToken}`);
+            .set('Authorization', `Bearer ${authData.token}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('POST /project/new - should create a new project', async () => {
+        if (shouldSkipTests || !authData) return;
+
         const response = await request(app.getHttpServer())
             .post('/project/new')
-            .set('Authorization', `Bearer ${testUserToken}`)
-            .send({ name: 'E2E Test Project' });
+            .set('Authorization', `Bearer ${authData.token}`)
+            .send({ name: 'E2E Test Project with Real Auth' });
 
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('project_id');
-        expect(response.body).toHaveProperty('name', 'E2E Test Project');
+        expect(response.body).toHaveProperty('name', 'E2E Test Project with Real Auth');
 
         // Save the project ID for later tests
         projectId = response.body.project_id;
     });
 
     it('GET /project/:id - should return project details', async () => {
+        if (shouldSkipTests || !authData) return;
+
         // Skip if we couldn't create a project
         if (!projectId) {
             console.log('Skipping test because no project was created');
@@ -133,15 +136,17 @@ describe('Complete E2E Test with Real Auth', () => {
 
         const response = await request(app.getHttpServer())
             .get(`/project/${projectId}`)
-            .set('Authorization', `Bearer ${testUserToken}`);
+            .set('Authorization', `Bearer ${authData.token}`);
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('project_id', projectId);
-        expect(response.body).toHaveProperty('name', 'E2E Test Project');
+        expect(response.body).toHaveProperty('name', 'E2E Test Project with Real Auth');
         expect(response.body).toHaveProperty('phases');
     });
 
     it('POST /artifact/new - should create a new artifact', async () => {
+        if (shouldSkipTests || !authData) return;
+
         // Skip if we couldn't create a project
         if (!projectId) {
             console.log('Skipping test because no project was created');
@@ -150,7 +155,7 @@ describe('Complete E2E Test with Real Auth', () => {
 
         const response = await request(app.getHttpServer())
             .post('/artifact/new')
-            .set('Authorization', `Bearer ${testUserToken}`)
+            .set('Authorization', `Bearer ${authData.token}`)
             .set('X-AI-Provider', 'anthropic')
             .set('X-AI-Model', 'claude-3-haiku-20240307')
             .send({
