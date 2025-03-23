@@ -45,6 +45,7 @@
     "test:integration:repositories": "dotenv -e .env.test -- jest src/repositories/\".*\\.integration\\.spec\\.ts$\" --runInBand --config=jest.config.js",
     "test:integration:templates": "dotenv -e .env.test -- jest src/templates/\".*\\.integration\\.spec\\.ts$\" --runInBand --config=jest.config.js",
     "test:integration:workflow": "dotenv -e .env.test -- jest src/workflow/\".*\\.integration\\.spec\\.ts$\" --runInBand --config=jest.config.js",
+    "test:integration:auth": "dotenv -e .env.test -- jest src/auth/\".*\\.integration\\.spec\\.ts$\" --runInBand --config=jest.config.js",
     "test:all": "dotenv -e .env.test -- jest --runInBand --config=jest.config.js",
     "test:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json --runInBand",
     "test:repositories:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json \"repositories.*\\.e2e-spec\\.ts$\" --runInBand",
