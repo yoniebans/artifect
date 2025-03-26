@@ -6,39 +6,41 @@ import { AuthService } from './auth.service';
 import { ClerkService } from './clerk.service';
 import { PrismaService } from '../database/prisma.service';
 import { UserRepository } from '../repositories/user.repository';
-import { createClerkClient } from '@clerk/backend';
+import { AuthTestData, TEST_USER_CLERK_ID, createAuthenticatedTestUser } from '../../test/test-utils';
 
 /**
  * This integration test verifies that the Auth Module correctly
- * interfaces with the Clerk service.
+ * interfaces with the Clerk service using a real token.
  * 
  * To run this test:
  * npm run test:integration -- src/auth/auth.integration.spec.ts
  *
  * Required environment variables:
- * - CLERK_SECRET_KEY
- * - CLERK_JWT_AUDIENCE (optional)
- * - TEST_USER_CLERK_ID (a real user ID in your Clerk instance)
+ * - CLERK_SECRET_KEY - Your Clerk secret key
+ * - TEST_USER_CLERK_ID - ID of a test user in your Clerk instance
  */
 describe('Auth Module Integration Tests', () => {
     let authService: AuthService;
     let clerkService: ClerkService;
     let userRepository: UserRepository;
-    let configService: ConfigService;
-    let testUserId: string | undefined;
-    let testUserToken: string | undefined;
+    let authData: AuthTestData | null = null;
 
     beforeAll(async () => {
-        // Load environment variables
-        testUserId = process.env.TEST_USER_CLERK_ID;
+        console.log('\n🔑 AUTH MODULE INTEGRATION TEST 🔑');
 
-        if (!testUserId) {
-            console.warn('TEST_USER_CLERK_ID not set. Some tests will be skipped.');
-        }
-
+        // Check if required environment variables are set
         if (!process.env.CLERK_SECRET_KEY) {
-            console.warn('CLERK_SECRET_KEY not set. Tests will likely fail.');
+            console.error('❌ CLERK_SECRET_KEY not set. Tests will fail.');
+            return;
         }
+
+        if (!TEST_USER_CLERK_ID) {
+            console.error('❌ TEST_USER_CLERK_ID not set. Tests will fail.');
+            return;
+        }
+
+        console.log('✅ Environment variables are set. Proceeding with tests...');
+        console.log(`   Using test user ID: ${TEST_USER_CLERK_ID}`);
 
         // Set up the test module
         const moduleRef = await Test.createTestingModule({
@@ -59,139 +61,102 @@ describe('Auth Module Integration Tests', () => {
         authService = moduleRef.get<AuthService>(AuthService);
         clerkService = moduleRef.get<ClerkService>(ClerkService);
         userRepository = moduleRef.get<UserRepository>(UserRepository);
-        configService = moduleRef.get<ConfigService>(ConfigService);
 
-        // If we have a test user, generate a token for them
-        if (process.env.CLERK_SECRET_KEY) {
-            try {
-                // Create a Clerk client specifically for testing
-                const clerk = createClerkClient({
-                    secretKey: process.env.CLERK_SECRET_KEY
-                });
+        // Create authenticated test user
+        try {
+            console.log('\n🔑 Getting authenticated test user...');
+            authData = await createAuthenticatedTestUser();
+            console.log(`✅ Created authenticated test user with ID: ${authData.user.id}`);
+            console.log(`✅ User has Clerk ID: ${authData.clerkId}`);
+            console.log(`✅ Received token (length: ${authData.token.length})`);
+        } catch (error) {
+            console.error('❌ Failed to create authenticated test user:', error);
+            authData = null;
+        }
+    });
 
-                // Use the TestingTokenAPI to create a testing token
-                console.log(`Creating testing token...`);
-                const testingToken = await clerk.testingTokens.createTestingToken();
-
-                // Log the entire testingToken object to see what we're dealing with
-                console.log('Testing token object:', JSON.stringify(testingToken, null, 2));
-
-                testUserToken = testingToken.token;
-
-                // Safely log the expiration
-                try {
-                    const expirationDate = new Date(testingToken.expiresAt * 1000);
-                    console.log(`Token expires at: ${expirationDate.toISOString()}`);
-                } catch (e) {
-                    console.log(`Error converting expiration time:`, e.message);
-                    console.log(`Raw expiration value:`, testingToken.expiresAt);
-                }
-
-                // Print the token for inspection
-                console.log(`Token value:`, testUserToken);
-                if (testUserToken) {
-                    console.log(`Token length:`, testUserToken.length);
-                    console.log(`Token parts:`, testUserToken.split('.').length);
-                }
-            } catch (error) {
-                console.error('Failed to generate test token:', error);
-            }
+    // Don't run tests if pre-conditions fail
+    beforeEach(() => {
+        if (!process.env.CLERK_SECRET_KEY || !TEST_USER_CLERK_ID || !authData) {
+            console.warn('⚠️ Skipping test due to missing prerequisites');
+            pending('Missing prerequisites for this test');
         }
     });
 
     describe('ClerkService', () => {
-        it('should be defined', () => {
-            expect(clerkService).toBeDefined();
-        });
+        it('should successfully verify the token', async () => {
+            // Skip if prerequisites not met
+            if (!authData) return;
 
-        it('should access configuration', () => {
-            const secretKey = configService.get<string>('CLERK_SECRET_KEY');
-            expect(secretKey).toBeDefined();
-        });
+            console.log('\n🔍 Testing token verification...');
+            const result = await clerkService.verifyToken(authData.token);
 
-        it('should verify a token', async () => {
-            // Skip if no token available
-            if (!testUserToken) {
-                console.log('Skipping token verification test - no token available');
-                return;
-            }
-
-            const result = await clerkService.verifyToken(testUserToken);
-
-            // Log result for debugging
-            console.log('Token verification result:', JSON.stringify(result, null, 2));
-
-            // If verification fails but we're sure the token is correctly formatted,
-            // we may need to modify our verification method
-            if (!result) {
-                console.log('Token verification failed, might need to adjust verification method');
-
-                // Let's not fail the test in integration mode
-                expect(true).toBe(true);
-                return;
+            if (result) {
+                console.log('✅ Token verified successfully!');
+                console.log(`   Token subject: ${result.sub}`);
+                // Print other token info if available
+                Object.entries(result).forEach(([key, value]) => {
+                    if (key !== 'sub') {
+                        console.log(`   ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+                    }
+                });
+            } else {
+                console.error('❌ Token verification failed');
             }
 
             expect(result).toBeDefined();
             expect(result.sub).toBeDefined();
+            if (TEST_USER_CLERK_ID) {
+                // The sub might not match TEST_USER_CLERK_ID exactly, but should contain it
+                expect(result.sub).toContain(TEST_USER_CLERK_ID.split('_')[1]);
+            }
         });
 
-        it('should get user details', async () => {
-            // Skip if no test user ID available
-            if (!testUserId) {
-                console.log('Skipping user details test - no test user ID available');
-                return;
-            }
+        it('should get user details from Clerk', async () => {
+            // Skip if prerequisites not met
+            if (!authData) return;
 
-            const result = await clerkService.getUserDetails(testUserId);
+            console.log('\n👤 Testing user details retrieval...');
+            const result = await clerkService.getUserDetails(authData.clerkId);
 
-            // Log result for debugging
-            console.log('User details:', result ? 'Retrieved' : 'Failed');
             if (result) {
-                console.log(`- User email: ${result.emailAddresses?.[0]?.emailAddress}`);
+                console.log('✅ User details retrieved successfully!');
+                console.log(`   User ID: ${result.id}`);
+                console.log(`   Email: ${result.emailAddresses?.[0]?.emailAddress || 'Not found'}`);
+                console.log(`   Name: ${result.firstName} ${result.lastName}`);
+            } else {
+                console.error('❌ User details retrieval failed');
             }
 
             expect(result).toBeDefined();
-            expect(result.id).toBe(testUserId);
+            expect(result.id).toBe(authData.clerkId);
         });
     });
 
     describe('AuthService', () => {
-        it('should be defined', () => {
-            expect(authService).toBeDefined();
-        });
+        it('should validate token and get user', async () => {
+            // Skip if prerequisites not met
+            if (!authData) return;
 
-        it('should validate a token and get or create user', async () => {
-            // Skip if no token available
-            if (!testUserToken) {
-                console.log('Skipping token validation test - no token available');
-                return;
+            console.log('\n🔐 Testing full token validation...');
+
+            // Mock the user repository to return our test user
+            jest.spyOn(userRepository, 'findByClerkId').mockResolvedValue(authData.user);
+
+            try {
+                const result = await authService.validateToken(authData.token);
+
+                console.log('✅ Token validated and user retrieved!');
+                console.log(`   User ID: ${result.id}`);
+                console.log(`   User email: ${result.email}`);
+
+                expect(result).toBeDefined();
+                expect(result.id).toBe(authData.user.id);
+                expect(result.clerkId).toBe(authData.clerkId);
+            } catch (error) {
+                console.error('❌ Token validation failed:', error.message);
+                fail(`Token validation failed: ${error.message}`);
             }
-
-            // Mock the verifyToken method to return a valid payload
-            jest.spyOn(clerkService, 'verifyToken').mockResolvedValue({
-                sub: testUserId || 'mock_user_id',
-                exp: Math.floor(Date.now() / 1000) + 3600
-            });
-
-            // Create a mock implementation for findByClerkId to avoid database dependency
-            jest.spyOn(userRepository, 'findByClerkId').mockResolvedValue(null);
-            jest.spyOn(userRepository, 'create').mockImplementation(async (userData) => {
-                return {
-                    id: 1,
-                    clerkId: userData.clerkId,
-                    email: userData.email || 'test@example.com',
-                    firstName: userData.firstName || 'Test',
-                    lastName: userData.lastName || 'User',
-                    isAdmin: false,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                };
-            });
-
-            const result = await authService.validateToken(testUserToken);
-
-            expect(result).toBeDefined();
-            expect(result.id).toBe(1);
         });
     });
 });

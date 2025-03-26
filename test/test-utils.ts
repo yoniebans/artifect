@@ -73,19 +73,29 @@ export async function createAuthenticatedTestUser(): Promise<AuthTestData> {
     let user: User;
 
     try {
-        // Always create a fresh user - we assume DB is wiped between test runs
-        user = await prisma.user.create({
-            data: {
-                clerkId: TEST_USER_CLERK_ID,
-                email: TEST_USER_EMAIL || `test_${TEST_USER_CLERK_ID}@example.com`,
-                firstName: 'Test',
-                lastName: 'User',
-                isAdmin: false,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            }
+        // Try to find an existing user first
+        const existingUser = await prisma.user.findFirst({
+            where: { clerkId: TEST_USER_CLERK_ID }
         });
-        console.log(`[Test Utils] Created authenticated test user with ID: ${user.id}`);
+
+        if (existingUser) {
+            user = existingUser;
+            console.log(`[Test Utils] Found existing test user with ID: ${user.id}`);
+        } else {
+            // Create a new user if none exists
+            user = await prisma.user.create({
+                data: {
+                    clerkId: TEST_USER_CLERK_ID,
+                    email: TEST_USER_EMAIL || `test_${TEST_USER_CLERK_ID}@example.com`,
+                    firstName: 'Test',
+                    lastName: 'User',
+                    isAdmin: false,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }
+            });
+            console.log(`[Test Utils] Created authenticated test user with ID: ${user.id}`);
+        }
     } catch (error) {
         console.error('[Test Utils] Failed to create authenticated test user:', error);
         throw error;
@@ -130,7 +140,7 @@ export async function getTestUserFromDb(): Promise<User> {
 }
 
 /**
- * Generate a JWT token for testing using Clerk SDK
+ * Generate a JWT token for testing using direct HTTP request to Clerk API
  * @param clerkUserId The Clerk user ID to generate a token for
  * @returns A JWT token
  * @private Internal use only - called by createAuthenticatedTestUser()
@@ -144,22 +154,49 @@ async function generateClerkToken(clerkUserId: string): Promise<string> {
     try {
         const clerk = createClerkClient({ secretKey });
 
-        // Use the TestingTokenAPI to create a testing token
-        const testingToken = await clerk.testingTokens.createTestingToken();
-        console.log(`[Test Utils] Created testing token, expires at: ${new Date(testingToken.expiresAt * 1000).toISOString()}`);
+        console.log(`[Test Utils] Creating session for user ${clerkUserId} using direct HTTP request`);
 
-        // Debug the token
-        try {
-            const parts = testingToken.token.split('.');
-            if (parts.length === 3) {
-                const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-                console.log('[Test Utils] Token payload:', payload);
-            }
-        } catch (e) {
-            console.error('[Test Utils] Failed to decode token for debugging');
+        // Step 1: Create a session via direct HTTP request
+        const response = await fetch('https://api.clerk.com/v1/sessions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${secretKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ user_id: clerkUserId })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(`HTTP error ${response.status}: ${errorData}`);
         }
 
-        return testingToken.token;
+        const sessionData = await response.json();
+        console.log(`[Test Utils] Created session with ID: ${sessionData.id}`);
+        console.log(`[Test Utils] Full session data:`, JSON.stringify(sessionData, null, 2));
+
+        // Step 2: Use the Clerk SDK to get a token from the session ID
+        console.log(`[Test Utils] Creating session token using template "basic"`);
+        const sessionToken = await clerk.sessions.getToken(sessionData.id, "basic");
+        console.log(`[Test Utils] Token created successfully (length: ${sessionToken.jwt.length})`);
+
+        // Step 3: Print the full token for inspection
+        console.log(`[Test Utils] Full token: ${sessionToken}`);
+
+        // Step 4: Decode and log token info for validation
+        try {
+            const parts = sessionToken.jwt.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                console.log(`[Test Utils] Token payload:`, JSON.stringify(payload, null, 2));
+                console.log(`[Test Utils] Token payload contains user_id: ${payload.user_id || 'not found'}`);
+                console.log(`[Test Utils] Token payload contains email: ${payload.email || 'not found'}`);
+            }
+        } catch (e) {
+            console.log(`[Test Utils] Could not decode token payload: ${e.message}`);
+        }
+
+        return sessionToken.jwt;
     } catch (error) {
         console.error('[Test Utils] Error generating token:', error);
         throw error;
