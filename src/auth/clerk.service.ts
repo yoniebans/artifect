@@ -2,7 +2,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { clerkClient, verifyToken } from '@clerk/clerk-sdk-node';
+import { createClerkClient, verifyToken } from '@clerk/backend';
 
 @Injectable()
 export class ClerkService {
@@ -31,7 +31,9 @@ export class ClerkService {
     }
 
     // Use the pre-initialized client
-    this.clerk = clerkClient;
+    this.clerk = createClerkClient({
+      secretKey: secretKey,
+    });
   }
 
   /**

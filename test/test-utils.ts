@@ -1,7 +1,7 @@
 // test/test-utils.ts
 
 import { PrismaClient, User } from '@prisma/client';
-import { createClerkClient, ClerkClient } from '@clerk/clerk-sdk-node';
+import { createClerkClient } from '@clerk/backend';
 
 // Constants for non-authenticated tests
 const DUMMY_CLERK_ID = 'test_user_clerk_id_dummy';
@@ -136,40 +136,32 @@ export async function getTestUserFromDb(): Promise<User> {
  * @private Internal use only - called by createAuthenticatedTestUser()
  */
 async function generateClerkToken(clerkUserId: string): Promise<string> {
-    // Check if the CLERK_SECRET_KEY is available
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
-        throw new Error("CLERK_SECRET_KEY is not defined in environment variables");
+        throw new Error("CLERK_SECRET_KEY is not defined");
     }
 
     try {
-        const clerk: ClerkClient = createClerkClient({ secretKey });
+        const clerk = createClerkClient({ secretKey });
 
-        // Get existing sessions or create a new one
-        const sessions = await clerk.sessions.getSessionList({
-            userId: clerkUserId,
-        });
+        // Use the TestingTokenAPI to create a testing token
+        const testingToken = await clerk.testingTokens.createTestingToken();
+        console.log(`[Test Utils] Created testing token, expires at: ${new Date(testingToken.expiresAt * 1000).toISOString()}`);
 
-        let token: string;
-        if (sessions.totalCount > 0) {
-            const sessionId = sessions.data[0].id;
-            console.log(`[Test Utils] Using existing Clerk session: ${sessionId}`);
-            const sessionToken = await clerk.sessions.getToken(sessionId, "test");
-            token = sessionToken.jwt;
-        } else {
-            // Create a new session if none exists
-            console.log(`[Test Utils] Creating new Clerk session for user: ${clerkUserId}`);
-            const signIn = await clerk.signInTokens.createSignInToken({
-                userId: clerkUserId,
-                expiresInSeconds: 24 * 60 * 60, // 24 hours
-            });
-            token = signIn.token;
+        // Debug the token
+        try {
+            const parts = testingToken.token.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                console.log('[Test Utils] Token payload:', payload);
+            }
+        } catch (e) {
+            console.error('[Test Utils] Failed to decode token for debugging');
         }
 
-        console.log(`[Test Utils] Successfully generated Clerk token`);
-        return token;
+        return testingToken.token;
     } catch (error) {
-        console.error('[Test Utils] Error generating Clerk token:', error);
+        console.error('[Test Utils] Error generating token:', error);
         throw error;
     }
 }
