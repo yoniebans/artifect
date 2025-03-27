@@ -1,6 +1,5 @@
 'use client';
 
-// apps/frontend/lib/api-client.ts
 import { useAuth } from '@clerk/nextjs';
 
 // Base URL for the backend
@@ -51,10 +50,12 @@ export function useApiClient() {
             }
 
             // Direct request to the backend
+            console.log(`Making request to: ${API_BASE_URL}${endpoint}`);
             const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error(`API request failed: ${API_BASE_URL}${endpoint}`, errorData);
                 throw new Error(errorData.message || `Request failed with status ${response.status}`);
             }
 

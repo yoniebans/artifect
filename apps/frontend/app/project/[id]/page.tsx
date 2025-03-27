@@ -5,13 +5,7 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArtifactTable } from "@/components/ArtifactTable";
 import ArtifactEditor from "@/components/ArtifactEditor";
-import {
-  Artifact,
-  Phase,
-  Message,
-  ChatCompletion,
-  Project,
-} from "@/types/artifact";
+import { Artifact, Phase, Message, Project } from "@/types/artifact";
 import { AIProvider } from "@/types/ai-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,8 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
 import { UserButton } from "@clerk/nextjs";
+import { useApiClient } from "@/lib/api-client";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -35,7 +29,11 @@ export default function ProjectPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const {
+    fetchApi,
+    isAuthenticated,
+    isLoading: isAuthLoading,
+  } = useApiClient();
 
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
@@ -45,19 +43,7 @@ export default function ProjectPage() {
   const fetchProjectDetails = useCallback(async () => {
     setIsLoading(true);
     try {
-      const token = await getToken();
-      const response = await fetch(`/api/project/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch project details");
-      }
-
-      const projectData: Project = await response.json();
+      const projectData = await fetchApi(`/project/${id}`);
       setProject(projectData);
     } catch (error) {
       console.error("Error fetching project details:", error);
@@ -69,23 +55,11 @@ export default function ProjectPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id, getToken, toast]);
+  }, [id, fetchApi, toast]);
 
   const fetchAIProviders = useCallback(async () => {
     try {
-      const token = await getToken();
-      const response = await fetch("/api/ai-providers", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch AI providers");
-      }
-
-      const data = await response.json();
+      const data = await fetchApi("/ai-providers");
       setAIProviders(data);
       if (data.length > 0) {
         setSelectedProvider(data[0].id);
@@ -99,20 +73,24 @@ export default function ProjectPage() {
         variant: "destructive",
       });
     }
-  }, [getToken, toast]);
+  }, [fetchApi, toast]);
 
   useEffect(() => {
-    // Check if authentication is loaded and user is signed in
-    if (isLoaded && !isSignedIn) {
-      router.push("/sign-in");
-      return;
-    }
-
-    if (isLoaded && isSignedIn) {
+    if (!isAuthLoading) {
+      if (!isAuthenticated) {
+        router.push("/sign-in");
+        return;
+      }
       fetchProjectDetails();
       fetchAIProviders();
     }
-  }, [id, isLoaded, isSignedIn, router, fetchProjectDetails, fetchAIProviders]);
+  }, [
+    isAuthLoading,
+    isAuthenticated,
+    router,
+    fetchProjectDetails,
+    fetchAIProviders,
+  ]);
 
   const handleProviderChange = (providerId: string) => {
     setSelectedProvider(providerId);
@@ -202,25 +180,18 @@ export default function ProjectPage() {
   const startArtifact = async (artifact: Artifact) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/artifact/new", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-AI-Provider": selectedProvider,
-          "X-AI-Model": selectedModel,
-        },
-        body: JSON.stringify({
+      const data = await fetchApi(
+        "/artifact/new",
+        "POST",
+        {
           project_id: id,
           artifact_type_name: artifact.artifact_type_name,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create new artifact");
-      }
-
-      const data: { artifact: Artifact; chat_completion: ChatCompletion } =
-        await response.json();
+        },
+        {
+          "X-AI-Provider": selectedProvider,
+          "X-AI-Model": selectedModel,
+        }
+      );
 
       // Replace the stub with the newly created artifact
       replaceStubWithRealArtifact(data.artifact);
@@ -250,21 +221,16 @@ export default function ProjectPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/artifact/${artifact.artifact_id}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
+      const artifactDetail = await fetchApi(
+        `/artifact/${artifact.artifact_id}`,
+        "GET",
+        undefined,
+        {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
-        },
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch artifact details");
-      }
-      const artifactDetail: {
-        artifact: Artifact;
-        chat_completion: ChatCompletion;
-      } = await response.json();
+        }
+      );
+
       setEditingArtifact(artifactDetail.artifact);
       setInitialMessages(artifactDetail.chat_completion.messages);
     } catch (error) {
@@ -292,22 +258,10 @@ export default function ProjectPage() {
         throw new Error("Approved state not found in available transitions");
       }
 
-      const response = await fetch(
-        `/api/artifact/${artifact.artifact_id}/state/${approvedStateId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      const data = await fetchApi(
+        `/artifact/${artifact.artifact_id}/state/${approvedStateId}`,
+        "PUT"
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to approve artifact");
-      }
-
-      const data: { artifact: Artifact; chat_completion: ChatCompletion } =
-        await response.json();
 
       updateExistingArtifact(data.artifact);
 
@@ -358,7 +312,8 @@ export default function ProjectPage() {
     }
   };
 
-  if (isLoading) return <div className="text-center p-8">Loading...</div>;
+  if (isLoading || isAuthLoading)
+    return <div className="text-center p-8">Loading...</div>;
   if (!project) return <div className="text-center p-8">No project found.</div>;
 
   return (

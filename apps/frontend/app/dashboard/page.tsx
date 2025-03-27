@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
 import { Project } from "@/types/artifact";
-import { UserButton, useAuth } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/api-client";
 
@@ -34,28 +34,25 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
-  const { isLoaded, isSignedIn } = useAuth();
-  const { fetchApi, isAuthenticated } = useApiClient();
+  const {
+    fetchApi,
+    isAuthenticated,
+    isLoading: isAuthLoading,
+  } = useApiClient();
 
   // Check authentication status
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
+    if (!isAuthLoading && !isAuthenticated) {
       router.push("/sign-in");
     }
-  }, [isLoaded, isSignedIn, router]);
+  }, [isAuthLoading, isAuthenticated, router]);
 
-  // Fetch projects when authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProjects();
-    }
-  }, [isAuthenticated]);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Direct request to backend
+      console.log("Fetching projects from backend...");
       const data = await fetchApi("/project");
+      console.log("Projects data received:", data);
       setProjects(data);
 
       if (data.length === 0) {
@@ -75,7 +72,14 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchApi, toast]);
+
+  // Fetch projects when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchProjects();
+    }
+  }, [isAuthenticated, fetchProjects]);
 
   const createProject = async () => {
     if (!newProjectName.trim()) {
@@ -88,7 +92,6 @@ export default function Dashboard() {
     }
 
     try {
-      // Direct request to backend
       const newProject = await fetchApi("/project/new", "POST", {
         name: newProjectName,
       });
@@ -115,11 +118,11 @@ export default function Dashboard() {
   );
 
   // Show loading state or authentication check
-  if (isLoading || !isLoaded) {
+  if (isLoading || isAuthLoading) {
     return <div className="text-center p-8">Loading...</div>;
   }
 
-  if (!isSignedIn) {
+  if (!isAuthenticated) {
     return null; // Will redirect in useEffect
   }
 

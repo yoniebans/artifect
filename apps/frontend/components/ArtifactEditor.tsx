@@ -9,10 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
-import { Artifact, Message, ChatCompletion } from "@/types/artifact";
+import { Artifact, Message } from "@/types/artifact";
 import { ImageIcon, SunIcon } from "@radix-ui/react-icons";
 import { Maximize2, Save } from "lucide-react";
 import { FullscreenPreview } from "@/components/FullscreenPreview";
+import { useApiClient } from "@/lib/api-client";
 
 interface ArtifactEditorProps {
   artifact: Artifact;
@@ -44,6 +45,7 @@ export default function Component({
   const [activeTab, setActiveTab] = useState("preview");
   const [loadingDots, setLoadingDots] = useState(".");
   const mermaidRef = useRef<HTMLDivElement>(null);
+  const { fetchApi } = useApiClient();
 
   const hasChanges = useCallback(() => {
     return currentArtifact.artifact_version_content !== originalContent;
@@ -69,26 +71,15 @@ export default function Component({
 
     setIsSaving(true);
     try {
-      const response = await fetch(
-        `/api/artifact/${currentArtifact.artifact_id}`,
+      const updatedArtifact = await fetchApi(
+        `/artifact/${currentArtifact.artifact_id}`,
+        "PUT",
         {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: currentArtifact.name,
-            content: currentArtifact.artifact_version_content,
-          }),
+          name: currentArtifact.name,
+          content: currentArtifact.artifact_version_content,
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save changes");
-      }
-
-      const updatedArtifact = await response.json();
       setCurrentArtifact(updatedArtifact);
       setOriginalContent(updatedArtifact.artifact_version_content);
       onSave(updatedArtifact);
@@ -128,27 +119,18 @@ export default function Component({
       setIsLoading(true);
 
       try {
-        const response = await fetch(
-          `/api/artifact/${currentArtifact.artifact_id}/ai`,
+        const data = await fetchApi(
+          `/artifact/${currentArtifact.artifact_id}/ai`,
+          "PUT",
           {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "X-AI-Provider": selectedProvider,
-              "X-AI-Model": selectedModel,
-            },
-            body: JSON.stringify({
-              messages: [newMessage],
-            }),
+            messages: [newMessage],
+          },
+          {
+            "X-AI-Provider": selectedProvider,
+            "X-AI-Model": selectedModel,
           }
         );
 
-        if (!response.ok) {
-          throw new Error("Failed to get AI response");
-        }
-
-        const data: { artifact: Artifact; chat_completion: ChatCompletion } =
-          await response.json();
         setCurrentArtifact(data.artifact);
         setOriginalContent(data.artifact.artifact_version_content);
         onSave(data.artifact);
