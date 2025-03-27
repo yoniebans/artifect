@@ -1,19 +1,6 @@
-import { NextResponse } from 'next/server'
-import { config } from '@/lib/config'
+import { NextRequest } from 'next/server';
+import { makeAuthenticatedRequest } from '@/lib/api';
 
-export async function GET() {
-    try {
-        const response = await fetch(
-            config.getBackendUrl('/project'),
-            config.getGetRequestOptions()
-        );
-        if (!response.ok) {
-            throw new Error('Failed to fetch projects')
-        }
-        const data = await response.json()
-        return NextResponse.json(data)
-    } catch (error) {
-        console.error('Error fetching projects:', error)
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
-    }
+export async function GET(request: NextRequest) {
+    return makeAuthenticatedRequest(request, '/project');
 }

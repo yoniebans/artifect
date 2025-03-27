@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArtifactTable } from "@/components/ArtifactTable";
@@ -23,67 +23,96 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 
-export default function Component() {
+export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [editingArtifact, setEditingArtifact] = useState<Artifact | null>(null);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [hasApprovedArtifacts, setHasApprovedArtifacts] = useState(false);
 
+  const fetchProjectDetails = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/project/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch project details");
+      }
+
+      const projectData: Project = await response.json();
+      setProject(projectData);
+    } catch (error) {
+      console.error("Error fetching project details:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load project details. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, getToken, toast]);
+
+  const fetchAIProviders = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch("/api/ai-providers", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch AI providers");
+      }
+
+      const data = await response.json();
+      setAIProviders(data);
+      if (data.length > 0) {
+        setSelectedProvider(data[0].id);
+        setSelectedModel(data[0].models[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching AI providers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load AI providers. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [getToken, toast]);
+
   useEffect(() => {
-    const fetchProjectDetails = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(`/api/project/${id}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch project details");
-        }
-        const projectData: Project = await response.json();
-        setProject(projectData);
-      } catch (error) {
-        console.error("Error fetching project details:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load project details. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // Check if authentication is loaded and user is signed in
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in");
+      return;
+    }
 
-    const fetchAIProviders = async () => {
-      try {
-        const response = await fetch("/api/ai-providers");
-        if (!response.ok) {
-          throw new Error("Failed to fetch AI providers");
-        }
-        const data = await response.json();
-        setAIProviders(data);
-        if (data.length > 0) {
-          setSelectedProvider(data[0].id);
-          setSelectedModel(data[0].models[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching AI providers:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load AI providers. Please try again.",
-          variant: "destructive",
-        });
-      }
-    };
-
-    fetchProjectDetails();
-    fetchAIProviders();
-  }, [id, toast]);
+    if (isLoaded && isSignedIn) {
+      fetchProjectDetails();
+      fetchAIProviders();
+    }
+  }, [id, isLoaded, isSignedIn, router, fetchProjectDetails, fetchAIProviders]);
 
   const handleProviderChange = (providerId: string) => {
     setSelectedProvider(providerId);
@@ -335,7 +364,20 @@ export default function Component() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold">{project.name}</h1>
+        {/* Top section with project name and user button */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">
+            {project?.name || "Loading..."}
+          </h1>
+          <div className="flex gap-4">
+            <Button variant="outline" onClick={() => router.push("/dashboard")}>
+              Back to Dashboard
+            </Button>
+            <UserButton afterSignOutUrl="/" />
+          </div>
+        </div>
+
+        {/* AI Provider selection section */}
         <div className="flex items-center justify-between">
           <div className="flex space-x-4">
             <Select
@@ -376,7 +418,9 @@ export default function Component() {
             Download Artifacts
           </Button>
         </div>
-        {project.phases.map((phase, index) => {
+
+        {/* Artifact tables section */}
+        {project?.phases.map((phase, index) => {
           const isPreviousPhaseApproved =
             index === 0 ||
             project.phases[index - 1].artifacts.every(
@@ -396,6 +440,8 @@ export default function Component() {
           );
         })}
       </div>
+
+      {/* Artifact editor modal */}
       {editingArtifact && (
         <ArtifactEditor
           artifact={editingArtifact}
