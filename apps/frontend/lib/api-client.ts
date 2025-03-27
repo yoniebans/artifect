@@ -2,7 +2,7 @@
 
 import { useAuth } from '@clerk/nextjs';
 
-// Base URL for the backend
+// Base URL for the backend - DIRECT CONNECTION TO BACKEND
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /**
@@ -49,13 +49,23 @@ export function useApiClient() {
                 requestOptions.body = JSON.stringify(body);
             }
 
+            // Ensure endpoint starts with a slash
+            const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
             // Direct request to the backend
-            console.log(`Making request to: ${API_BASE_URL}${endpoint}`);
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+            const fullUrl = `${API_BASE_URL}${normalizedEndpoint}`;
+            console.log(`Making request to: ${fullUrl}`);
+            const response = await fetch(fullUrl, requestOptions);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error(`API request failed: ${API_BASE_URL}${endpoint}`, errorData);
+                // Special handling for 401 Unauthorized errors
+                if (response.status === 401) {
+                    console.error("Authentication failed - token may be expired or invalid");
+                    throw new Error("Authentication expired. Please sign in again.");
+                }
+
+                const errorData = await response.json().catch(() => ({ message: `Failed with status: ${response.status}` }));
+                console.error(`API request failed: ${fullUrl}`, errorData);
                 throw new Error(errorData.message || `Request failed with status ${response.status}`);
             }
 
