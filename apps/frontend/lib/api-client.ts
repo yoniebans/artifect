@@ -1,9 +1,13 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
 // Base URL for the backend - DIRECT CONNECTION TO BACKEND
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
+// Track ongoing requests to prevent duplicates
+const ongoingRequests = new Map<string, Promise<any>>();
 
 /**
  * Hook that provides an authenticated API client for direct backend requests
@@ -14,7 +18,7 @@ export function useApiClient() {
     /**
      * Make a direct authenticated request to the backend API
      */
-    const fetchApi = async (
+    const fetchApi = useCallback(async (
         endpoint: string,
         method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
         body?: Record<string, unknown>,
@@ -31,6 +35,17 @@ export function useApiClient() {
         }
 
         try {
+            // Normalize the endpoint
+            const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+            // Create a request key to track duplicate requests
+            const requestKey = `${method}:${normalizedEndpoint}:${JSON.stringify(body || {})}`;
+
+            // If there's an ongoing request with this key, return its promise
+            if (method === 'GET' && ongoingRequests.has(requestKey)) {
+                return ongoingRequests.get(requestKey);
+            }
+
             // Get token for authentication
             const token = await getToken();
 
@@ -49,32 +64,47 @@ export function useApiClient() {
                 requestOptions.body = JSON.stringify(body);
             }
 
-            // Ensure endpoint starts with a slash
-            const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
             // Direct request to the backend
             const fullUrl = `${API_BASE_URL}${normalizedEndpoint}`;
-            console.log(`Making request to: ${fullUrl}`);
-            const response = await fetch(fullUrl, requestOptions);
 
-            if (!response.ok) {
-                // Special handling for 401 Unauthorized errors
-                if (response.status === 401) {
-                    console.error("Authentication failed - token may be expired or invalid");
-                    throw new Error("Authentication expired. Please sign in again.");
+            // Create the request promise
+            const requestPromise = (async () => {
+                try {
+                    console.log(`Making request to: ${fullUrl}`);
+                    const response = await fetch(fullUrl, requestOptions);
+
+                    if (!response.ok) {
+                        // Special handling for 401 Unauthorized errors
+                        if (response.status === 401) {
+                            console.error("Authentication failed - token may be expired or invalid");
+                            throw new Error("Authentication expired. Please sign in again.");
+                        }
+
+                        const errorData = await response.json().catch(() => ({
+                            message: `Failed with status: ${response.status}`
+                        }));
+                        console.error(`API request failed: ${fullUrl}`, errorData);
+                        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+                    }
+
+                    return await response.json();
+                } finally {
+                    // Remove from ongoing requests when done
+                    ongoingRequests.delete(requestKey);
                 }
+            })();
 
-                const errorData = await response.json().catch(() => ({ message: `Failed with status: ${response.status}` }));
-                console.error(`API request failed: ${fullUrl}`, errorData);
-                throw new Error(errorData.message || `Request failed with status ${response.status}`);
+            // Store the promise for GET requests
+            if (method === 'GET') {
+                ongoingRequests.set(requestKey, requestPromise);
             }
 
-            return await response.json();
+            return requestPromise;
         } catch (error) {
             console.error(`Error in API request to ${endpoint}:`, error);
             throw error;
         }
-    };
+    }, [getToken, userId, isLoaded, isSignedIn]); // Properly memoize with dependencies
 
     return {
         fetchApi,
