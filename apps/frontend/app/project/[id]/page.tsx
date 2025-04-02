@@ -5,8 +5,6 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArtifactTable } from "@/components/ArtifactTable";
 import ArtifactEditor from "@/components/ArtifactEditor";
-import { Artifact, Phase, Message, Project } from "@/types/artifact";
-import { AIProvider } from "@/types/ai-provider";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { downloadArtifacts } from "@/lib/artifact-download-utils";
@@ -20,6 +18,13 @@ import {
 import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { useApiClient } from "@/lib/api-client";
+import {
+  IProject as Project,
+  IArtifact as Artifact,
+  IMessage as Message,
+  IPhase as Phase,
+  IAIProvider as AIProvider,
+} from "@artifect/shared";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();

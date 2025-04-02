@@ -1,12 +1,17 @@
-// src/api/dto/artifact.dto.ts
-
+// apps/backend/src/api/dto/artifact.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, ArrayNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+    IArtifact,
+    IStateTransition,
+    IArtifactCreate,
+    IArtifactUpdate,
+    IMessage,
+    IChatCompletion,
+    IArtifactEditorResponse
+} from '@artifect/shared';
 
-/**
- * DTO for state transitions (available states)
- */
-export class StateTransitionDto {
+export class StateTransitionDto implements IStateTransition {
     @IsString()
     state_id: string;
 
@@ -14,10 +19,7 @@ export class StateTransitionDto {
     state_name: string;
 }
 
-/**
- * DTO for creating a new artifact
- */
-export class ArtifactCreateDto {
+export class ArtifactCreateDto implements IArtifactCreate {
     @IsString()
     @IsNotEmpty()
     project_id: string;
@@ -27,13 +29,10 @@ export class ArtifactCreateDto {
     artifact_type_name: string;
 }
 
-/**
- * DTO for basic artifact information
- */
-export class ArtifactDto {
+export class ArtifactDto implements IArtifact {
     @IsString()
     @IsOptional()
-    artifact_id: string | null;  // Allow null values
+    artifact_id: string;
 
     @IsString()
     artifact_type_id: string;
@@ -50,11 +49,11 @@ export class ArtifactDto {
 
     @IsString()
     @IsOptional()
-    state_id: string | null;  // Allow null values
+    state_id: string;
 
     @IsString()
     @IsOptional()
-    state_name: string | null;  // Allow null values
+    state_name: string;
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -62,22 +61,16 @@ export class ArtifactDto {
     available_transitions: StateTransitionDto[];
 }
 
-/**
- * DTO for detailed artifact information including content
- */
 export class ArtifactDetailDto extends ArtifactDto {
     @IsOptional()
     @IsString()
-    artifact_version_number?: string | null;
+    artifact_version_number?: string;
 
     @IsOptional()
     @IsString()
-    artifact_version_content?: string | null;
+    artifact_version_content?: string;
 }
 
-/**
- * DTO for a phase of artifacts (e.g., Requirements, Design)
- */
 export class ArtifactPhaseDto {
     @IsString()
     name: string;
@@ -94,19 +87,7 @@ export class ArtifactPhaseDto {
     artifacts: ArtifactDetailDto[];
 }
 
-/**
- * DTO for updating an artifact with AI assistance
- */
-export class ArtifactUpdateAIDto {
-    @IsString()
-    @IsNotEmpty()
-    user_message: string;
-}
-
-/**
- * DTO for manually updating an artifact
- */
-export class ArtifactUpdateDto {
+export class ArtifactUpdateDto implements IArtifactUpdate {
     @IsOptional()
     @IsString()
     name?: string;
@@ -116,22 +97,16 @@ export class ArtifactUpdateDto {
     content?: string;
 }
 
-/**
- * DTO for a chat message
- */
-export class MessageDto {
+export class MessageDto implements IMessage {
     @IsString()
     @IsNotEmpty()
-    role: string;
+    role: 'user' | 'assistant';
 
     @IsString()
     @IsNotEmpty()
     content: string;
 }
 
-/**
- * DTO for AI request with messages
- */
 export class ArtifactUpdateAIRequestDto {
     @IsArray()
     @ArrayNotEmpty()
@@ -140,20 +115,14 @@ export class ArtifactUpdateAIRequestDto {
     messages: MessageDto[];
 }
 
-/**
- * DTO for chat completion response
- */
-export class ChatCompletionDto {
+export class ChatCompletionDto implements IChatCompletion {
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => MessageDto)
     messages: MessageDto[];
 }
 
-/**
- * DTO for artifact editor response
- */
-export class ArtifactEditorResponseDto {
+export class ArtifactEditorResponseDto implements IArtifactEditorResponse {
     @ValidateNested()
     @Type(() => ArtifactDetailDto)
     artifact: ArtifactDetailDto;

@@ -123,8 +123,12 @@ export class ProjectController {
             const projectDto: ProjectDto = {
                 project_id: projectData.project_id,
                 name: projectData.name,
-                created_at: projectData.created_at,
-                updated_at: projectData.updated_at,
+                created_at: projectData.created_at instanceof Date
+                    ? projectData.created_at.toISOString()
+                    : String(projectData.created_at),
+                updated_at: projectData.updated_at instanceof Date
+                    ? projectData.updated_at.toISOString()
+                    : projectData.updated_at ? String(projectData.updated_at) : null,
                 phases: artifactPhases
             };
 

@@ -1,22 +1,16 @@
-// src/api/dto/project.dto.ts
-
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsArray } from 'class-validator';
+// apps/backend/src/api/dto/project.dto.ts
+import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ArtifactDetailDto, ArtifactPhaseDto } from './artifact.dto';
+import { IProject, IProjectCreate } from '@artifect/shared';
+import { ArtifactPhaseDto } from './artifact.dto';
 
-/**
- * DTO for creating a new project
- */
-export class ProjectCreateDto {
+export class ProjectCreateDto implements IProjectCreate {
     @IsString()
     @IsNotEmpty()
     name: string;
 }
 
-/**
- * Base DTO for project data
- */
-export class ProjectBaseDto {
+export class ProjectSummaryDto implements IProject {
     @IsString()
     project_id: string;
 
@@ -24,24 +18,19 @@ export class ProjectBaseDto {
     @IsNotEmpty()
     name: string;
 
-    @IsOptional()
-    created_at?: Date | null;
+    @IsString()
+    created_at: string;
 
     @IsOptional()
-    updated_at?: Date | null;
+    @IsString()
+    updated_at?: string | null;
+
+    @IsArray()
+    @Type(() => ArtifactPhaseDto)
+    phases: ArtifactPhaseDto[] = [];
 }
 
-/**
- * DTO for project summary (used in list endpoints)
- */
-export class ProjectSummaryDto extends ProjectBaseDto {
-    // No additional fields - used for list endpoints that don't need full artifact details
-}
-
-/**
- * DTO for full project details including artifact phases
- */
-export class ProjectDto extends ProjectBaseDto {
+export class ProjectDto extends ProjectSummaryDto {
     @IsArray()
     @Type(() => ArtifactPhaseDto)
     phases: ArtifactPhaseDto[] = [];

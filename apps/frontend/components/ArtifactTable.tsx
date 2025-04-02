@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Maximize2 } from "lucide-react";
-import { Artifact, Phase } from "@/types/artifact";
 import { useToast } from "@/hooks/use-toast";
 import { FullscreenPreview } from "@/components/FullscreenPreview";
+import { IArtifact as Artifact, IPhase as Phase } from "@artifect/shared";
 
 const artifactTypeColors: { [key: string]: string } = {
   "Vision Document": "bg-purple-500",
@@ -313,7 +313,7 @@ export function ArtifactTable({
 
       {previewArtifact && (
         <FullscreenPreview
-          content={previewArtifact.artifact_version_content}
+          content={previewArtifact.artifact_version_content || ""}
           contentType={previewArtifact.artifact_type_name}
           onClose={() => setPreviewArtifact(null)}
         />

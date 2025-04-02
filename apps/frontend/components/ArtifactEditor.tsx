@@ -9,12 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
-import { Artifact, Message } from "@/types/artifact";
 import { ImageIcon, SunIcon } from "@radix-ui/react-icons";
 import { Maximize2, Save } from "lucide-react";
 import { FullscreenPreview } from "@/components/FullscreenPreview";
 import { useApiClient } from "@/lib/api-client";
-
+import { IArtifact as Artifact, IMessage as Message } from "@artifect/shared";
 interface ArtifactEditorProps {
   artifact: Artifact;
   initialMessages: Message[];
@@ -342,7 +341,7 @@ export default function Component({
 
       {isFullscreen && (
         <FullscreenPreview
-          content={currentArtifact.artifact_version_content}
+          content={currentArtifact.artifact_version_content || ""}
           contentType={currentArtifact.artifact_type_name}
           onClose={() => setIsFullscreen(false)}
         />

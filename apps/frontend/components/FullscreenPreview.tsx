@@ -15,7 +15,7 @@ interface FullscreenPreviewProps {
 }
 
 export function FullscreenPreview({
-  content,
+  content = "",
   contentType,
   onClose,
 }: FullscreenPreviewProps) {

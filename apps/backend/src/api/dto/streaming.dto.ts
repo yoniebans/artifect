@@ -1,11 +1,8 @@
-// src/api/dto/streaming.dto.ts
-
+// apps/backend/src/api/dto/streaming.dto.ts
 import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IStreamingChunk } from '@artifect/shared';
 
-/**
- * DTO for streaming chunk response
- */
-export class StreamingChunkDto {
+export class StreamingChunkDto implements IStreamingChunk {
     @IsString()
     chunk: string;
 

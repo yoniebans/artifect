@@ -1,5 +1,6 @@
+// apps/frontend/lib/artifact-download-utils.ts
 import JSZip from 'jszip';
-import { Phase } from '../types/artifact';
+import { IPhase as Phase } from '@artifect/shared';
 
 const sanitizeFileName = (name: string): string => {
     return name
@@ -24,8 +25,12 @@ export const downloadArtifacts = async (phases: Phase[]) => {
     const zip = new JSZip();
 
     phases.forEach((phase) => {
+        // Filter artifacts that are both approved and have content
         const approvedArtifacts = phase.artifacts.filter(
-            (artifact) => artifact.state_name === "Approved"
+            (artifact) =>
+                artifact.state_name === "Approved" &&
+                artifact.artifact_version_content !== undefined &&
+                artifact.artifact_version_content !== null
         );
 
         if (approvedArtifacts.length > 0) {
@@ -33,8 +38,11 @@ export const downloadArtifacts = async (phases: Phase[]) => {
 
             if (phaseFolder) {
                 approvedArtifacts.forEach((artifact) => {
-                    const fileName = `${sanitizeFileName(artifact.name)}_v${artifact.artifact_version_number}${getFileExtension(artifact.artifact_type_name)}`;
-                    phaseFolder.file(fileName, artifact.artifact_version_content);
+                    // Since we filtered out undefined/null content above, we know this is safe
+                    // But TypeScript doesn't know that, so we add a null check with default empty string
+                    const content = artifact.artifact_version_content || '';
+                    const fileName = `${sanitizeFileName(artifact.name)}_v${artifact.artifact_version_number || '1'}${getFileExtension(artifact.artifact_type_name)}`;
+                    phaseFolder.file(fileName, content);
                 });
             }
         }
