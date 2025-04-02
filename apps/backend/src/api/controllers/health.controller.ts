@@ -1,4 +1,4 @@
-// src/api/controllers/health.controller.ts
+// apps/backend/src/api/controllers/health.controller.ts
 
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from '../../app.service';
@@ -20,6 +20,7 @@ export class HealthController {
     @Public()
     @ApiHealthCheck()
     getHealth() {
+        // Since this is a simple return with no DTO validation needed, we can keep it as is
         return this.appService.getHealth();
     }
 }

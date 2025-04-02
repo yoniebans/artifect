@@ -1,4 +1,4 @@
-// src/api/controllers/ai-provider.controller.ts
+// apps/backend/src/api/controllers/ai-provider.controller.ts
 
 import { Controller, Get } from '@nestjs/common';
 import { AIProviderDto } from '../dto';
@@ -17,7 +17,7 @@ export class AIProviderController {
     @Get()
     @ApiListAIProviders()
     async listAIProviders(): Promise<AIProviderDto[]> {
-        const providers: AIProviderDto[] = [
+        const providersData = [
             // Anthropic standard
             {
                 id: "anthropic",
@@ -71,6 +71,15 @@ export class AIProviderController {
                 ]
             }
         ];
+
+        // Convert plain objects to validated DTOs
+        const providers = providersData.map(providerData => {
+            const providerDto = new AIProviderDto();
+            providerDto.id = providerData.id;
+            providerDto.name = providerData.name;
+            providerDto.models = providerData.models;
+            return providerDto;
+        });
 
         return providers;
     }

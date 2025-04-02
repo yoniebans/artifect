@@ -60,12 +60,6 @@ export class ProjectController {
         return this.workflowOrchestrator.listProjects() as unknown as ProjectSummaryDto[];
     }
 
-    /**
-     * Get detailed project information
-     * @param projectId Project ID
-     * @param user Current authenticated user
-     * @returns Project details with artifacts
-     */
     @Get(':project_id')
     @ApiViewProject()
     async viewProject(
@@ -119,18 +113,13 @@ export class ProjectController {
                 });
             }
 
-            // Construct the full project response
-            const projectDto: ProjectDto = {
-                project_id: projectData.project_id,
-                name: projectData.name,
-                created_at: projectData.created_at instanceof Date
-                    ? projectData.created_at.toISOString()
-                    : String(projectData.created_at),
-                updated_at: projectData.updated_at instanceof Date
-                    ? projectData.updated_at.toISOString()
-                    : projectData.updated_at ? String(projectData.updated_at) : null,
-                phases: artifactPhases
-            };
+            // Create and populate a ProjectDto instance
+            const projectDto = new ProjectDto();
+            projectDto.project_id = projectData.project_id;
+            projectDto.name = projectData.name;
+            projectDto.created_at = this.convertToString(projectData.created_at) || "";
+            projectDto.updated_at = this.convertToString(projectData.updated_at);
+            projectDto.phases = artifactPhases;
 
             return projectDto;
         } catch (error) {
@@ -139,5 +128,19 @@ export class ProjectController {
             }
             throw error;
         }
+    }
+
+    // Helper method to convert dates to strings (add this to the ProjectController class)
+    private convertToString(value: Date | string | null | undefined): string | null {
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (value === null || value === undefined) {
+            return null;
+        }
+        return String(value);
     }
 }

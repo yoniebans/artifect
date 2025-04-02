@@ -1,4 +1,4 @@
-// src/api/services/sse.service.ts
+// apps/backend/src/api/services/sse.service.ts
 
 import { Injectable } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
@@ -35,14 +35,10 @@ export class SSEService {
      */
     completeStream(
         subject: Subject<StreamingChunkDto>,
-        data?: { artifact_content?: string; commentary?: string }
+        data?: StreamingChunkDto
     ): void {
         if (data) {
-            subject.next({
-                chunk: '',
-                done: true,
-                ...data
-            });
+            subject.next(data);
         }
         subject.complete();
     }

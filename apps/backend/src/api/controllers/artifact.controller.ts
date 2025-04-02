@@ -16,7 +16,11 @@ import {
     ArtifactCreateDto,
     ArtifactUpdateDto,
     ArtifactUpdateAIRequestDto,
-    ArtifactEditorResponseDto
+    ArtifactEditorResponseDto,
+    ArtifactDetailDto,
+    StateTransitionDto,
+    ChatCompletionDto,
+    MessageDto
 } from '../dto';
 import {
     ApiCreateArtifact,
@@ -60,7 +64,8 @@ export class ArtifactController {
                 user.id // Pass the user ID
             );
 
-            return result as ArtifactEditorResponseDto;
+            // Create proper DTO instance
+            return this.toArtifactEditorResponseDto(result);
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -68,6 +73,46 @@ export class ArtifactController {
                 throw new BadRequestException(error.message);
             }
         }
+    }
+
+    // Helper method to create DTO instance (add this to the ArtifactController class)
+    private toArtifactEditorResponseDto(data: any): ArtifactEditorResponseDto {
+        const responseDto = new ArtifactEditorResponseDto();
+
+        // Create artifact detail DTO
+        const artifactDto = new ArtifactDetailDto();
+        artifactDto.artifact_id = data.artifact.artifact_id;
+        artifactDto.artifact_type_id = data.artifact.artifact_type_id;
+        artifactDto.artifact_type_name = data.artifact.artifact_type_name;
+        artifactDto.name = data.artifact.name;
+        artifactDto.state_id = data.artifact.state_id;
+        artifactDto.state_name = data.artifact.state_name;
+        artifactDto.artifact_version_number = data.artifact.artifact_version_number;
+        artifactDto.artifact_version_content = data.artifact.artifact_version_content;
+        artifactDto.dependent_type_id = data.artifact.dependent_type_id;
+
+        // Create state transition DTOs
+        artifactDto.available_transitions = (data.artifact.available_transitions || []).map((transition: any) => {
+            const transitionDto = new StateTransitionDto();
+            transitionDto.state_id = transition.state_id;
+            transitionDto.state_name = transition.state_name;
+            return transitionDto;
+        });
+
+        // Create chat completion DTO
+        const chatCompletionDto = new ChatCompletionDto();
+        chatCompletionDto.messages = (data.chat_completion?.messages || []).map((message: any) => {
+            const messageDto = new MessageDto();
+            messageDto.role = message.role;
+            messageDto.content = message.content;
+            return messageDto;
+        });
+
+        // Assign to response
+        responseDto.artifact = artifactDto;
+        responseDto.chat_completion = chatCompletionDto;
+
+        return responseDto;
     }
 
     /**
@@ -93,12 +138,13 @@ export class ArtifactController {
                 user.id // Pass the user ID
             );
 
-            // Since the workflow orchestrator returns just the artifact, we need to
-            // get the full artifact details with chat history
-            return this.workflowOrchestrator.getArtifactDetails(
+            // Get the full artifact details with chat history
+            const result = await this.workflowOrchestrator.getArtifactDetails(
                 Number(artifactId),
                 user.id // Pass the user ID
-            ) as Promise<ArtifactEditorResponseDto>;
+            );
+
+            return this.toArtifactEditorResponseDto(result);
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -121,10 +167,12 @@ export class ArtifactController {
         @CurrentUser() user: User
     ): Promise<ArtifactEditorResponseDto> {
         try {
-            return await this.workflowOrchestrator.getArtifactDetails(
+            const result = await this.workflowOrchestrator.getArtifactDetails(
                 Number(artifactId),
                 user.id // Pass the user ID
-            ) as ArtifactEditorResponseDto;
+            );
+
+            return this.toArtifactEditorResponseDto(result);
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -153,13 +201,15 @@ export class ArtifactController {
         @Headers('X-AI-Model') aiModel?: string
     ): Promise<ArtifactEditorResponseDto> {
         try {
-            return await this.workflowOrchestrator.interactArtifact(
+            const result = await this.workflowOrchestrator.interactArtifact(
                 Number(artifactId),
                 updateRequest.messages[0].content,
                 aiProvider,
                 aiModel,
                 user.id // Pass the user ID
-            ) as ArtifactEditorResponseDto;
+            );
+
+            return this.toArtifactEditorResponseDto(result);
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
@@ -184,11 +234,13 @@ export class ArtifactController {
         @CurrentUser() user: User
     ): Promise<ArtifactEditorResponseDto> {
         try {
-            return await this.workflowOrchestrator.transitionArtifact(
+            const result = await this.workflowOrchestrator.transitionArtifact(
                 Number(artifactId),
                 Number(stateId),
                 user.id // Pass the user ID
-            ) as ArtifactEditorResponseDto;
+            );
+
+            return this.toArtifactEditorResponseDto(result);
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);

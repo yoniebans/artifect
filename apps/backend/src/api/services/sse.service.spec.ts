@@ -90,7 +90,7 @@ describe('SSEService', () => {
             });
 
             // Complete the stream with final data
-            service.completeStream(subject, finalData);
+            service.completeStream(subject, finalData as StreamingChunkDto);
         });
     });
 });

@@ -1,4 +1,4 @@
-// src/api/controllers/streaming.controller.ts
+// apps/backend/src/api/controllers/streaming.controller.ts
 
 import {
     Controller,
@@ -57,7 +57,9 @@ export class StreamingController {
                     updateRequest.messages[0].content,
                     // Callback for handling chunks
                     (chunk: string) => {
-                        this.sseService.sendToStream(subject, { chunk });
+                        const chunkDto = new StreamingChunkDto();
+                        chunkDto.chunk = chunk;
+                        this.sseService.sendToStream(subject, chunkDto);
                     },
                     aiProvider,
                     aiModel,
@@ -65,34 +67,21 @@ export class StreamingController {
                 );
 
                 // Send final message with complete content
-                this.sseService.completeStream(subject, {
-                    artifact_content: result.artifactContent,
-                    commentary: result.commentary
-                });
+                const finalChunkDto = new StreamingChunkDto();
+                finalChunkDto.chunk = '';
+                finalChunkDto.done = true;
+                finalChunkDto.artifact_content = result.artifactContent;
+                finalChunkDto.commentary = result.commentary;
+
+                this.sseService.completeStream(subject, finalChunkDto);
             } catch (error) {
                 // Handle errors by sending error message through the stream
-                if (error.message.includes('not found')) {
-                    this.sseService.sendToStream(subject, {
-                        chunk: `Error: ${error.message}`,
-                        done: true
-                    });
-                    this.sseService.completeStream(subject);
-                    // Note: We don't throw here anymore as the exception would be lost
-                } else if (error.message.includes('does not support streaming')) {
-                    this.sseService.sendToStream(subject, {
-                        chunk: `Error: ${error.message}`,
-                        done: true
-                    });
-                    this.sseService.completeStream(subject);
-                    // Note: We don't throw here anymore as the exception would be lost
-                } else {
-                    this.sseService.sendToStream(subject, {
-                        chunk: `Error: ${error.message}`,
-                        done: true
-                    });
-                    this.sseService.completeStream(subject);
-                    // Note: We don't throw here anymore as the exception would be lost
-                }
+                const errorChunkDto = new StreamingChunkDto();
+                errorChunkDto.chunk = `Error: ${error.message}`;
+                errorChunkDto.done = true;
+
+                this.sseService.sendToStream(subject, errorChunkDto);
+                this.sseService.completeStream(subject);
             }
         })();
 
