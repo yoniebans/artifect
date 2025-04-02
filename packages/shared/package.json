@@ -1,0 +1,31 @@
+{
+    "name": "@artifect/shared",
+    "version": "0.1.0",
+    "private": true,
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "clean": "rimraf dist",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "rimraf": "^4.1.2",
+        "tsup": "^6.5.0",
+        "typescript": "^5.0.4"
+    },
+    "tsup": {
+        "entry": [
+            "src/index.ts"
+        ],
+        "format": [
+            "cjs",
+            "esm"
+        ],
+        "dts": true,
+        "clean": true
+    }
+}
