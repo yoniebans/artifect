@@ -7,7 +7,7 @@ import { useAuth } from '@clerk/nextjs';
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 // Track ongoing requests to prevent duplicates
-const ongoingRequests = new Map<string, Promise<any>>();
+const ongoingRequests = new Map<string, Promise<unknown>>();
 
 /**
  * Hook that provides an authenticated API client for direct backend requests
