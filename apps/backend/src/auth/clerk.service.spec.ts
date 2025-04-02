@@ -1,40 +1,50 @@
 // src/auth/clerk.service.spec.ts
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ClerkService } from './clerk.service';
-import * as jose from 'jose';
 
-// Mock jose library
-jest.mock('jose', () => ({
-    createRemoteJWKSet: jest.fn().mockReturnValue(() => ({})),
-    jwtVerify: jest.fn(),
+// Mock @clerk/backend module
+jest.mock('@clerk/backend', () => ({
+    createClerkClient: jest.fn(() => ({
+        users: {
+            getUser: jest.fn().mockResolvedValue({
+                id: 'user_123',
+                email_addresses: [{ email_address: 'test@example.com' }],
+                first_name: 'Test',
+                last_name: 'User'
+            })
+        }
+    })),
+    verifyToken: jest.fn()
 }));
 
-// Mock fetch
-global.fetch = jest.fn();
+import { createClerkClient, verifyToken } from '@clerk/backend';
 
 describe('ClerkService', () => {
     let service: ClerkService;
     let configService: ConfigService;
 
     const mockConfig = {
-        'CLERK_API_KEY': 'test-api-key',
-        'CLERK_JWKS_URL': 'https://test.clerk.dev/v1/jwks',
-        'CLERK_API_BASE_URL': 'https://test.clerk.com/v1',
-        'CLERK_JWT_AUDIENCE': 'test-audience',
+        get: jest.fn().mockImplementation((key: string) => {
+            const values: { [key: string]: string } = {
+                'CLERK_SECRET_KEY': 'test_secret_key',
+                'CLERK_JWT_AUDIENCE': 'test_audience',
+                'CLERK_JWT_KEY': 'test_jwt_key'
+            };
+            return values[key];
+        })
     };
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ClerkService,
                 {
                     provide: ConfigService,
-                    useValue: {
-                        get: jest.fn((key: keyof typeof mockConfig) => mockConfig[key]),
-                    },
-                },
+                    useValue: mockConfig
+                }
             ],
         }).compile();
 
@@ -42,110 +52,71 @@ describe('ClerkService', () => {
         configService = module.get<ConfigService>(ConfigService);
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
     it('should be defined', () => {
         expect(service).toBeDefined();
     });
 
-    it('should initialize with correct config values', () => {
-        expect(configService.get).toHaveBeenCalledWith('CLERK_JWKS_URL');
-        expect(configService.get).toHaveBeenCalledWith('CLERK_API_KEY');
-        expect(configService.get).toHaveBeenCalledWith('CLERK_API_BASE_URL');
-        expect(jose.createRemoteJWKSet).toHaveBeenCalledWith(
-            new URL(mockConfig.CLERK_JWKS_URL)
-        );
+    it('should initialize Clerk client with secret key', () => {
+        expect(createClerkClient).toHaveBeenCalledWith({
+            secretKey: 'test_secret_key'
+        });
     });
 
     describe('verifyToken', () => {
-        it('should correctly verify a valid token', async () => {
-            const mockPayload = {
-                sub: 'user_123',
-                exp: Math.floor(Date.now() / 1000) + 3600,
-                iss: 'clerk',
-            };
+        it('should verify token successfully', async () => {
+            const token = 'valid.jwt.token';
+            const payload = { sub: 'user_123', aud: 'test_audience' };
 
             // Mock successful token verification
-            (jose.jwtVerify as jest.Mock).mockResolvedValueOnce({
-                payload: mockPayload,
-                protectedHeader: {},
+            (verifyToken as jest.Mock).mockResolvedValueOnce(payload);
+
+            const result = await service.verifyToken(token);
+
+            expect(verifyToken).toHaveBeenCalledWith(token, {
+                audience: 'test_audience',
+                jwtKey: 'test_jwt_key'
             });
 
-            const result = await service.verifyToken('valid.test.token');
-
-            expect(jose.jwtVerify).toHaveBeenCalledWith(
-                'valid.test.token',
-                expect.any(Function),
-                {
-                    issuer: 'clerk',
-                    audience: mockConfig.CLERK_JWT_AUDIENCE,
-                }
-            );
-            expect(result).toEqual(mockPayload);
+            expect(result).toEqual(payload);
         });
 
-        it('should return null for an invalid token', async () => {
+        it('should return null when token verification fails', async () => {
+            const token = 'invalid.jwt.token';
+
             // Mock failed token verification
-            (jose.jwtVerify as jest.Mock).mockRejectedValueOnce(
-                new Error('Invalid token')
-            );
+            (verifyToken as jest.Mock).mockRejectedValueOnce(new Error('Invalid token'));
 
-            const result = await service.verifyToken('invalid.token');
+            const result = await service.verifyToken(token);
 
+            expect(verifyToken).toHaveBeenCalled();
             expect(result).toBeNull();
         });
     });
 
     describe('getUserDetails', () => {
-        it('should return user details for a valid user ID', async () => {
-            const mockUserData = {
+        it('should fetch user details from Clerk', async () => {
+            const userId = 'user_123';
+            const expectedUser = {
                 id: 'user_123',
                 email_addresses: [{ email_address: 'test@example.com' }],
                 first_name: 'Test',
-                last_name: 'User',
+                last_name: 'User'
             };
 
-            // Mock successful API response
-            (global.fetch as jest.Mock).mockResolvedValueOnce({
-                ok: true,
-                json: jest.fn().mockResolvedValueOnce(mockUserData),
-            });
+            const result = await service.getUserDetails(userId);
 
-            const result = await service.getUserDetails('user_123');
-
-            expect(global.fetch).toHaveBeenCalledWith(
-                `${mockConfig.CLERK_API_BASE_URL}/users/user_123`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${mockConfig.CLERK_API_KEY}`,
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
-            expect(result).toEqual(mockUserData);
+            // Check that it calls the mocked client
+            expect(result).toEqual(expectedUser);
         });
 
-        it('should return null when API request fails', async () => {
-            // Mock failed API response
-            (global.fetch as jest.Mock).mockResolvedValueOnce({
-                ok: false,
-                statusText: 'Not Found',
-            });
+        it('should return null when fetching user details fails', async () => {
+            const userId = 'invalid_user';
 
-            const result = await service.getUserDetails('invalid_user');
+            // Access private field using TypeScript private field accessor
+            const clerkClient = (service as any)['clerk'];
+            clerkClient.users.getUser.mockRejectedValueOnce(new Error('User not found'));
 
-            expect(result).toBeNull();
-        });
-
-        it('should return null when fetch throws an error', async () => {
-            // Mock network error
-            (global.fetch as jest.Mock).mockRejectedValueOnce(
-                new Error('Network error')
-            );
-
-            const result = await service.getUserDetails('user_123');
+            const result = await service.getUserDetails(userId);
 
             expect(result).toBeNull();
         });

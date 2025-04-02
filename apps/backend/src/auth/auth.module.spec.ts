@@ -6,9 +6,6 @@ import { ClerkService } from './clerk.service';
 import { AuthGuard } from './guards/auth.guard';
 import { APP_GUARD } from '@nestjs/core';
 
-// Mock jose before importing any modules that use it
-jest.mock('jose');
-
 describe('AuthModule', () => {
     it('should be defined', () => {
         expect(AuthModule).toBeDefined();
