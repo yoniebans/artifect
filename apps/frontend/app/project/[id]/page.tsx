@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArtifactTable } from "@/components/ArtifactTable";
-import ArtifactEditor from "@/components/ArtifactEditor";
 import { useToast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { downloadArtifacts } from "@/lib/artifact-download-utils";
 import {
   Select,
@@ -16,13 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { useApiClient } from "@/lib/api-client";
+import { useLoadingApi } from "@/components/loading/useLoadingApi";
+import { ArtifactEditorModal } from "@/components/transitions/ArtifactEditorModal";
+import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
 import {
   IProject as Project,
   IArtifact as Artifact,
   IMessage as Message,
   IPhase as Phase,
   IAIProvider as AIProvider,
+  IArtifactEditorResponse,
 } from "@artifect/shared";
 
 export default function ProjectPage() {
@@ -30,25 +31,36 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [editingArtifact, setEditingArtifact] = useState<Artifact | null>(null);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const {
-    fetchApi,
+    fetchWithLoading,
     isAuthenticated,
-    isLoading: isAuthLoading,
-  } = useApiClient();
+    isAuthLoading,
+  } = useLoadingApi();
 
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [hasApprovedArtifacts, setHasApprovedArtifacts] = useState(false);
 
+  // Use refs to prevent infinite fetch loops
+  const providersLoaded = useRef(false);
+  const projectLoaded = useRef(false);
+
   const fetchProjectDetails = useCallback(async () => {
-    setIsLoading(true);
+    if (projectLoaded.current) return;
+    
     try {
-      const projectData = await fetchApi(`/project/${id}`);
+      const projectData = await fetchWithLoading<Project>(
+        `/project/${id}`,
+        "GET",
+        undefined,
+        undefined,
+        "Loading project details..."
+      );
       setProject(projectData);
+      projectLoaded.current = true;
     } catch (error) {
       console.error("Error fetching project details:", error);
       toast({
@@ -56,19 +68,26 @@ export default function ProjectPage() {
         description: "Failed to load project details. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [id, fetchApi, toast]);
+  }, [id, fetchWithLoading, toast]);
 
   const fetchAIProviders = useCallback(async () => {
+    if (providersLoaded.current) return;
+    
     try {
-      const data = await fetchApi("/ai-providers");
+      const data = await fetchWithLoading<AIProvider[]>(
+        "/ai-providers",
+        "GET",
+        undefined,
+        undefined,
+        "Loading AI providers..."
+      );
       setAIProviders(data);
       if (data.length > 0) {
         setSelectedProvider(data[0].id);
         setSelectedModel(data[0].models[0]);
       }
+      providersLoaded.current = true;
     } catch (error) {
       console.error("Error fetching AI providers:", error);
       toast({
@@ -77,16 +96,24 @@ export default function ProjectPage() {
         variant: "destructive",
       });
     }
-  }, [fetchApi, toast]);
+  }, [fetchWithLoading, toast]);
 
+  // Auth check and initial data loading
   useEffect(() => {
     if (!isAuthLoading) {
       if (!isAuthenticated) {
         router.push("/sign-in");
         return;
       }
-      fetchProjectDetails();
-      fetchAIProviders();
+      
+      // Only fetch if not already loaded
+      if (!projectLoaded.current) {
+        fetchProjectDetails();
+      }
+      
+      if (!providersLoaded.current) {
+        fetchAIProviders();
+      }
     }
   }, [
     isAuthLoading,
@@ -182,9 +209,8 @@ export default function ProjectPage() {
     };
 
   const startArtifact = async (artifact: Artifact) => {
-    setIsLoading(true);
     try {
-      const data = await fetchApi(
+      const data = await fetchWithLoading<IArtifactEditorResponse>(
         "/artifact/new",
         "POST",
         {
@@ -194,7 +220,8 @@ export default function ProjectPage() {
         {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
-        }
+        },
+        `Creating ${artifact.artifact_type_name}...`
       );
 
       // Replace the stub with the newly created artifact
@@ -215,24 +242,22 @@ export default function ProjectPage() {
         description: "Failed to start artifact. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const editArtifact = async (artifact: Artifact) => {
     if (!artifact.artifact_id) return;
 
-    setIsLoading(true);
     try {
-      const artifactDetail = await fetchApi(
+      const artifactDetail = await fetchWithLoading<IArtifactEditorResponse>(
         `/artifact/${artifact.artifact_id}`,
         "GET",
         undefined,
         {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
-        }
+        },
+        `Loading ${artifact.name}...`
       );
 
       setEditingArtifact(artifactDetail.artifact);
@@ -244,15 +269,12 @@ export default function ProjectPage() {
         description: "Failed to update artifact. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const approveArtifact = async (artifact: Artifact) => {
     if (!artifact.artifact_id) return;
 
-    setIsLoading(true);
     try {
       const approvedStateId = artifact.available_transitions.find(
         (transition) => transition.state_name === "Approved"
@@ -262,9 +284,12 @@ export default function ProjectPage() {
         throw new Error("Approved state not found in available transitions");
       }
 
-      const data = await fetchApi(
+      const data = await fetchWithLoading<{artifact: Artifact}>(
         `/artifact/${artifact.artifact_id}/state/${approvedStateId}`,
-        "PUT"
+        "PUT",
+        undefined,
+        undefined,
+        "Approving artifact..."
       );
 
       updateExistingArtifact(data.artifact);
@@ -280,8 +305,6 @@ export default function ProjectPage() {
         description: "Failed to approve artifact. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -298,7 +321,14 @@ export default function ProjectPage() {
     if (!project) return;
 
     try {
-      setIsLoading(true);
+      await fetchWithLoading(
+        "", // No actual endpoint, just for loading state
+        "GET",
+        undefined,
+        undefined,
+        "Preparing download...",
+        true
+      );
       await downloadArtifacts(project.phases);
       toast({
         title: "Success",
@@ -311,97 +341,103 @@ export default function ProjectPage() {
         description: "Failed to download artifacts. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  if (isLoading || isAuthLoading)
-    return <div className="text-center p-8">Loading...</div>;
-  if (!project) return <div className="text-center p-8">No project found.</div>;
+  if (isAuthLoading)
+    return (
+      <div className="text-center p-8 fade-in">Checking authentication...</div>
+    );
+  if (!project)
+    return <div className="text-center p-8 fade-in">No project found.</div>;
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Top section with project name and user button */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">
-            {project?.name || "Loading..."}
-          </h1>
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Back to Dashboard
-            </Button>
+    <ClientPageTransition>
+      <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Top section with project name and user button */}
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold slide-in-right">
+              {project?.name || "Loading..."}
+            </h1>
+            <div className="flex gap-4">
+              <Button variant="outline" onClick={() => router.push("/dashboard")}>
+                Back to Dashboard
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {/* AI Provider selection section */}
-        <div className="flex items-center justify-between">
-          <div className="flex space-x-4">
-            <Select
-              value={selectedProvider}
-              onValueChange={handleProviderChange}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select AI Provider" />
-              </SelectTrigger>
-              <SelectContent>
-                {aiProviders.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select AI Model" />
-              </SelectTrigger>
-              <SelectContent>
-                {aiProviders
-                  .find((p) => p.id === selectedProvider)
-                  ?.models.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
+          {/* AI Provider selection section */}
+          <div className="flex items-center justify-between slide-in-right animation-delay-150">
+            <div className="flex space-x-4">
+              <Select
+                value={selectedProvider}
+                onValueChange={handleProviderChange}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select AI Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiProviders.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
                     </SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select AI Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiProviders
+                    .find((p) => p.id === selectedProvider)
+                    ?.models.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleDownloadArtifacts}
+              disabled={!hasApprovedArtifacts}
+              variant="secondary"
+            >
+              Download Artifacts
+            </Button>
           </div>
-          <Button
-            onClick={handleDownloadArtifacts}
-            disabled={!hasApprovedArtifacts}
-            variant="secondary"
-          >
-            Download Artifacts
-          </Button>
+
+          {/* Artifact tables section */}
+          {project?.phases.map((phase, index) => {
+            const isPreviousPhaseApproved =
+              index === 0 ||
+              project.phases[index - 1].artifacts.every(
+                (artifact) => artifact.state_name === "Approved"
+              );
+            
+            // Add staggered animation delay based on index
+            const staggerClass = `stagger-item stagger-delay-${index + 1}`;
+            
+            return (
+              <div key={phase.phase_id} className={staggerClass}>
+                <ArtifactTable
+                  phase={phase}
+                  isDisabled={!isPreviousPhaseApproved}
+                  onEditArtifact={editArtifact}
+                  onStartArtifact={startArtifact}
+                  onApproveArtifact={approveArtifact}
+                  onAddArtifact={createStubArtifactHandler(phase)}
+                  onUpdateArtifact={updateExistingArtifact}
+                />
+              </div>
+            );
+          })}
         </div>
 
-        {/* Artifact tables section */}
-        {project?.phases.map((phase, index) => {
-          const isPreviousPhaseApproved =
-            index === 0 ||
-            project.phases[index - 1].artifacts.every(
-              (artifact) => artifact.state_name === "Approved"
-            );
-          return (
-            <ArtifactTable
-              key={phase.phase_id}
-              phase={phase}
-              isDisabled={!isPreviousPhaseApproved}
-              onEditArtifact={editArtifact}
-              onStartArtifact={startArtifact}
-              onApproveArtifact={approveArtifact}
-              onAddArtifact={createStubArtifactHandler(phase)}
-              onUpdateArtifact={updateExistingArtifact}
-            />
-          );
-        })}
-      </div>
-
-      {/* Artifact editor modal */}
-      {editingArtifact && (
-        <ArtifactEditor
+        {/* Artifact editor modal using our new component */}
+        <ArtifactEditorModal
           artifact={editingArtifact}
           initialMessages={initialMessages}
           selectedProvider={selectedProvider}
@@ -418,8 +454,7 @@ export default function ProjectPage() {
             });
           }}
         />
-      )}
-      <Toaster />
-    </div>
+      </div>
+    </ClientPageTransition>
   );
 }

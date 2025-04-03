@@ -168,7 +168,7 @@ export function ArtifactTable({
       <div
         className={`space-y-4 ${
           isDisabled ? "opacity-50 pointer-events-none" : ""
-        }`}
+        } transition-opacity duration-300`}
       >
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">{phase.name}</h2>
@@ -176,11 +176,12 @@ export function ArtifactTable({
             variant="outline"
             disabled={isDisabled || isAddArtifactDisabled}
             onClick={handleAddArtifact}
+            className="transition-all duration-300 hover:shadow-md"
           >
             <Plus className="mr-2 h-4 w-4" /> Artifact
           </Button>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -190,13 +191,16 @@ export function ArtifactTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {phase.artifacts.map((artifact) => {
+              {phase.artifacts.map((artifact, index) => {
                 const isEditing = editingArtifact === artifact.artifact_id;
                 const hasContent = !!artifact.artifact_version_content?.trim();
 
                 return (
                   <TableRow
                     key={artifact.artifact_id || artifact.artifact_type_id}
+                    className={`transition-colors duration-200 ${
+                      index % 2 === 0 ? "bg-muted/40" : ""
+                    }`}
                   >
                     <TableCell>
                       <div className="flex items-center space-x-2">
@@ -204,7 +208,7 @@ export function ArtifactTable({
                           className={`${
                             artifactTypeColors[artifact.artifact_type_name] ||
                             "bg-gray-500"
-                          } text-white`}
+                          } text-white transition-all duration-200`}
                         >
                           {artifact.artifact_type_name}
                         </Badge>
@@ -227,7 +231,7 @@ export function ArtifactTable({
                               artifact.artifact_id
                                 ? "cursor-pointer hover:underline"
                                 : "cursor-not-allowed"
-                            }`}
+                            } transition-colors duration-200`}
                             onClick={() => handleNameClick(artifact)}
                           >
                             {artifact.name ||
@@ -237,7 +241,15 @@ export function ArtifactTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-center w-[120px] whitespace-nowrap">
-                      <Badge className="bg-gray-500 text-white">
+                      <Badge
+                        className={`transition-all duration-300 ${
+                          artifact.state_name === "Approved"
+                            ? "bg-green-500"
+                            : artifact.state_name === "In Progress"
+                            ? "bg-blue-500"
+                            : "bg-gray-500"
+                        } text-white`}
+                      >
                         {artifact.state_name || "Not Started"}
                       </Badge>
                     </TableCell>
@@ -252,6 +264,7 @@ export function ArtifactTable({
                               isDisabled || isArtifactDisabled(artifact)
                             }
                             onClick={() => onStartArtifact(artifact)}
+                            className="transition-all duration-200 hover:bg-primary hover:text-primary-foreground"
                           >
                             Start
                           </Button>
@@ -266,6 +279,7 @@ export function ArtifactTable({
                                   isDisabled || isArtifactDisabled(artifact)
                                 }
                                 onClick={() => onApproveArtifact(artifact)}
+                                className="transition-all duration-200 hover:bg-green-500 hover:text-white"
                               >
                                 Approve
                               </Button>
@@ -277,6 +291,7 @@ export function ArtifactTable({
                                 isDisabled || isArtifactDisabled(artifact)
                               }
                               onClick={() => onEditArtifact(artifact)}
+                              className="transition-all duration-200 hover:bg-blue-500 hover:text-white"
                             >
                               Edit
                             </Button>
@@ -288,6 +303,7 @@ export function ArtifactTable({
                             size="sm"
                             disabled={isDisabled}
                             onClick={() => onEditArtifact(artifact)}
+                            className="transition-all duration-200 hover:bg-blue-500 hover:text-white"
                           >
                             Edit
                           </Button>
@@ -297,6 +313,7 @@ export function ArtifactTable({
                             variant="ghost"
                             size="icon"
                             onClick={() => setPreviewArtifact(artifact)}
+                            className="transition-all duration-200 hover:bg-accent"
                           >
                             <Maximize2 className="h-4 w-4" />
                           </Button>

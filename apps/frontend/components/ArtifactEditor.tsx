@@ -14,6 +14,7 @@ import { Maximize2, Save } from "lucide-react";
 import { FullscreenPreview } from "@/components/FullscreenPreview";
 import { useApiClient } from "@/lib/api-client";
 import { IArtifact as Artifact, IMessage as Message } from "@artifect/shared";
+
 interface ArtifactEditorProps {
   artifact: Artifact;
   initialMessages: Message[];
@@ -21,15 +22,20 @@ interface ArtifactEditorProps {
   onSave: (updatedArtifact: Artifact) => void;
   selectedProvider: string;
   selectedModel: string;
+  modalTransitionState?: {
+    isVisible: boolean;
+    inTransition: boolean;
+  };
 }
 
-export default function Component({
+export default function ArtifactEditor({
   artifact,
   initialMessages = [],
   onClose,
   onSave,
   selectedProvider,
   selectedModel,
+  modalTransitionState,
 }: ArtifactEditorProps) {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -205,132 +211,140 @@ export default function Component({
     ));
   };
 
+  const transitionStyle = modalTransitionState
+    ? {
+        transform: modalTransitionState.isVisible ? "scale(1)" : "scale(0.98)",
+        opacity: modalTransitionState.isVisible ? 1 : 0,
+      }
+    : {};
+
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-background border rounded-lg shadow-lg w-full max-w-6xl h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-2xl font-bold">
-            Artifact Editor - {currentArtifact.name}
-          </h2>
-          <div className="flex gap-2">
+    <div
+      className="bg-background border rounded-lg shadow-lg w-full max-w-6xl h-[90vh] flex flex-col transition-all duration-300"
+      style={transitionStyle}
+    >
+      <div className="flex justify-between items-center p-4 border-b">
+        <h2 className="text-2xl font-bold">
+          Artifact Editor - {currentArtifact.name}
+        </h2>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={
+              !currentArtifact.artifact_version_content?.trim() ||
+              !hasChanges() ||
+              isSaving
+            }
+            className="flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+      <div className="flex flex-1 min-h-0">
+        <div className="w-1/2 border-r flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {messages.map((message, index) => (
+              <div key={index} className="flex items-start space-x-3 p-4">
+                <Avatar className="w-8 h-8">
+                  {message.role === "user" ? (
+                    <AvatarFallback>
+                      <ImageIcon className="w-4 h-4" />
+                    </AvatarFallback>
+                  ) : (
+                    <AvatarFallback>
+                      <SunIcon className="w-4 h-4" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="flex-1 text-sm">{renderMessage(message)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="p-4 border-t flex items-end space-x-4">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message here..."
+              className="flex-1 min-h-[80px] text-sm"
+              disabled={isLoading}
+            />
             <Button
-              onClick={handleSave}
-              disabled={
-                !currentArtifact.artifact_version_content?.trim() ||
-                !hasChanges() ||
-                isSaving
-              }
-              className="flex items-center gap-2"
+              onClick={handleSendMessage}
+              className="mb-1 w-24"
+              disabled={isLoading}
             >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save"}
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <span>Thinking</span>
+                  <span className="w-4 text-left">{loadingDots}</span>
+                </span>
+              ) : (
+                "Send"
+              )}
             </Button>
-            <Button onClick={onClose}>Close</Button>
           </div>
         </div>
-        <div className="flex flex-1 min-h-0">
-          <div className="w-1/2 border-r flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              {messages.map((message, index) => (
-                <div key={index} className="flex items-start space-x-3 p-4">
-                  <Avatar className="w-8 h-8">
-                    {message.role === "user" ? (
-                      <AvatarFallback>
-                        <ImageIcon className="w-4 h-4" />
-                      </AvatarFallback>
-                    ) : (
-                      <AvatarFallback>
-                        <SunIcon className="w-4 h-4" />
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <div className="flex-1 text-sm">{renderMessage(message)}</div>
-                </div>
-              ))}
-            </div>
-            <div className="p-4 border-t flex items-end space-x-4">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message here..."
-                className="flex-1 min-h-[80px] text-sm"
-                disabled={isLoading}
-              />
+        <div className="w-1/2 flex flex-col min-h-0">
+          <Tabs
+            value={activeTab}
+            className="flex-1 flex flex-col min-h-0"
+            onValueChange={setActiveTab}
+          >
+            <TabsList className="justify-end bg-transparent border-b">
               <Button
-                onClick={handleSendMessage}
-                className="mb-1 w-24"
-                disabled={isLoading}
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsFullscreen(true)}
+                disabled={!currentArtifact.artifact_version_content?.trim()}
+                className="mr-2"
+                aria-label="Enter fullscreen"
               >
-                {isLoading ? (
-                  <span className="flex items-center justify-center">
-                    <span>Thinking</span>
-                    <span className="w-4 text-left">{loadingDots}</span>
-                  </span>
-                ) : (
-                  "Send"
-                )}
+                <Maximize2 className="h-4 w-4" />
               </Button>
-            </div>
-          </div>
-          <div className="w-1/2 flex flex-col min-h-0">
-            <Tabs
-              value={activeTab}
-              className="flex-1 flex flex-col min-h-0"
-              onValueChange={setActiveTab}
-            >
-              <TabsList className="justify-end bg-transparent border-b">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsFullscreen(true)}
-                  disabled={!currentArtifact.artifact_version_content?.trim()}
-                  className="mr-2"
-                  aria-label="Enter fullscreen"
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-                <TabsTrigger
-                  value="preview"
-                  className="bg-transparent data-[state=active]:bg-transparent"
-                >
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger
-                  value="source"
-                  className="bg-transparent data-[state=active]:bg-transparent"
-                >
-                  Source
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="preview" className="flex-1 overflow-y-auto">
-                <div className="h-full">
-                  <div
-                    className={
-                      currentArtifact.artifact_type_name
-                        .toLowerCase()
-                        .includes("c4")
-                        ? "p-4 h-full"
-                        : "markdown-preview p-4"
-                    }
-                  >
-                    {renderPreview()}
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="source" className="flex-1 overflow-y-auto">
-                <Textarea
-                  value={currentArtifact.artifact_version_content}
-                  onChange={(e) =>
-                    setCurrentArtifact((prev) => ({
-                      ...prev,
-                      artifact_version_content: e.target.value,
-                    }))
+              <TabsTrigger
+                value="preview"
+                className="bg-transparent data-[state=active]:bg-transparent"
+              >
+                Preview
+              </TabsTrigger>
+              <TabsTrigger
+                value="source"
+                className="bg-transparent data-[state=active]:bg-transparent"
+              >
+                Source
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview" className="flex-1 overflow-y-auto">
+              <div className="h-full">
+                <div
+                  className={
+                    currentArtifact.artifact_type_name
+                      .toLowerCase()
+                      .includes("c4")
+                      ? "p-4 h-full"
+                      : "markdown-preview p-4"
                   }
-                  className="w-full h-full font-mono p-4 rounded-none border-0 focus:ring-0 resize-none text-sm"
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
+                >
+                  {renderPreview()}
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="source" className="flex-1 overflow-y-auto">
+              <Textarea
+                value={currentArtifact.artifact_version_content}
+                onChange={(e) =>
+                  setCurrentArtifact((prev) => ({
+                    ...prev,
+                    artifact_version_content: e.target.value,
+                  }))
+                }
+                className="w-full h-full font-mono p-4 rounded-none border-0 focus:ring-0 resize-none text-sm"
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
