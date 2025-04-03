@@ -234,20 +234,15 @@ export default function Component({
               {messages.map((message, index) => (
                 <div key={index} className="flex items-start space-x-3 p-4">
                   <Avatar className="w-8 h-8">
-                    <AvatarImage
-                      src={
-                        message.role === "user"
-                          ? "/user-avatar.png"
-                          : "/ai-avatar.png"
-                      }
-                    />
-                    <AvatarFallback>
-                      {message.role === "user" ? (
+                    {message.role === "user" ? (
+                      <AvatarFallback>
                         <ImageIcon className="w-4 h-4" />
-                      ) : (
+                      </AvatarFallback>
+                    ) : (
+                      <AvatarFallback>
                         <SunIcon className="w-4 h-4" />
-                      )}
-                    </AvatarFallback>
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                   <div className="flex-1 text-sm">{renderMessage(message)}</div>
                 </div>

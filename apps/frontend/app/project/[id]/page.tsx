@@ -333,7 +333,6 @@ export default function ProjectPage() {
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               Back to Dashboard
             </Button>
-            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
 

@@ -156,7 +156,6 @@ export default function Dashboard() {
                 <Button onClick={createProject}>Create</Button>
               </DialogContent>
             </Dialog>
-            <UserButton afterSignOutUrl="/" />
           </div>
         </header>
         <div className="relative mb-6">
