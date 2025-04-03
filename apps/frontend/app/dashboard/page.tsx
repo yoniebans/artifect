@@ -21,7 +21,6 @@ import { Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/api-client";
 import { IProject as Project } from "@artifect/shared";

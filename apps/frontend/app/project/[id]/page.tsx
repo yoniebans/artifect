@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
 import { useApiClient } from "@/lib/api-client";
 import {
   IProject as Project,
