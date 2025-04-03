@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+    <div className="min-h-full flex flex-col items-center justify-center bg-background">
       <SignedOut>
         <div className="max-w-md w-full p-8 space-y-8">
           <div className="text-center">

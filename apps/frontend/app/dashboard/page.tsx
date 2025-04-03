@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { useLoadingApi } from "@/components/loading/useLoadingApi";
 import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
 import { IProject as Project } from "@artifect/shared";
+import { useLoading } from "@/components/loading/LoadingContext";
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,16 +34,30 @@ export default function Dashboard() {
   const { toast } = useToast();
   const router = useRouter();
   const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
+  const { setLoading, setLoadingMessage } = useLoading();
 
   // Use ref to prevent infinite fetch loops
   const projectsLoaded = useRef(false);
 
-  // Check authentication status
+  // Handle authentication loading with the central loading system
   useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push("/sign-in");
+    if (isAuthLoading) {
+      setLoadingMessage("Checking authentication...");
+      setLoading(true);
+    } else {
+      setLoading(false);
+
+      // Redirect if not authenticated
+      if (!isAuthenticated) {
+        router.push("/sign-in");
+      }
     }
-  }, [isAuthLoading, isAuthenticated, router]);
+
+    return () => {
+      // Clean up loading state when unmounting
+      setLoading(false);
+    };
+  }, [isAuthLoading, isAuthenticated, router, setLoading, setLoadingMessage]);
 
   const fetchProjects = useCallback(async () => {
     if (projectsLoaded.current) return;
@@ -74,10 +89,10 @@ export default function Dashboard() {
 
   // Fetch projects when authenticated
   useEffect(() => {
-    if (isAuthenticated && !projectsLoaded.current) {
+    if (isAuthenticated && !isAuthLoading && !projectsLoaded.current) {
       fetchProjects();
     }
-  }, [isAuthenticated, fetchProjects]);
+  }, [isAuthenticated, fetchProjects, isAuthLoading]);
 
   const createProject = async () => {
     if (!newProjectName.trim()) {
@@ -117,20 +132,15 @@ export default function Dashboard() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Show authentication check
-  if (isAuthLoading) {
-    return (
-      <div className="text-center p-8 fade-in">Checking authentication...</div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null; // Will redirect in useEffect
+  // Don't render anything if we're loading auth or not authenticated
+  // Let the LoadingOverlay handle the visual feedback
+  if (isAuthLoading || !isAuthenticated) {
+    return null;
   }
 
   return (
     <ClientPageTransition>
-      <div className="min-h-screen bg-background text-foreground p-8">
+      <div className="min-h-full bg-background text-foreground p-8">
         <div className="max-w-6xl mx-auto">
           <header className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold slide-in-right">Projects</h1>

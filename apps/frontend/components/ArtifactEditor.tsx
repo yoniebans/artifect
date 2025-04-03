@@ -220,7 +220,7 @@ export default function ArtifactEditor({
 
   return (
     <div
-      className="bg-background border rounded-lg shadow-lg w-full max-w-6xl h-[90vh] flex flex-col transition-all duration-300"
+      className="bg-background border rounded-lg shadow-lg w-full max-w-6xl max-h-[85vh] flex flex-col transition-all duration-300"
       style={transitionStyle}
     >
       <div className="flex justify-between items-center p-4 border-b">

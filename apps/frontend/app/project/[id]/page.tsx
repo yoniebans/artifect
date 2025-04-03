@@ -33,11 +33,7 @@ export default function ProjectPage() {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const { toast } = useToast();
   const router = useRouter();
-  const {
-    fetchWithLoading,
-    isAuthenticated,
-    isAuthLoading,
-  } = useLoadingApi();
+  const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
 
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
@@ -50,7 +46,7 @@ export default function ProjectPage() {
 
   const fetchProjectDetails = useCallback(async () => {
     if (projectLoaded.current) return;
-    
+
     try {
       const projectData = await fetchWithLoading<Project>(
         `/project/${id}`,
@@ -73,7 +69,7 @@ export default function ProjectPage() {
 
   const fetchAIProviders = useCallback(async () => {
     if (providersLoaded.current) return;
-    
+
     try {
       const data = await fetchWithLoading<AIProvider[]>(
         "/ai-providers",
@@ -105,12 +101,12 @@ export default function ProjectPage() {
         router.push("/sign-in");
         return;
       }
-      
+
       // Only fetch if not already loaded
       if (!projectLoaded.current) {
         fetchProjectDetails();
       }
-      
+
       if (!providersLoaded.current) {
         fetchAIProviders();
       }
@@ -284,7 +280,7 @@ export default function ProjectPage() {
         throw new Error("Approved state not found in available transitions");
       }
 
-      const data = await fetchWithLoading<{artifact: Artifact}>(
+      const data = await fetchWithLoading<{ artifact: Artifact }>(
         `/artifact/${artifact.artifact_id}/state/${approvedStateId}`,
         "PUT",
         undefined,
@@ -353,7 +349,7 @@ export default function ProjectPage() {
 
   return (
     <ClientPageTransition>
-      <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
+      <div className="min-h-[93vh] bg-background text-foreground p-4 sm:p-8">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Top section with project name and user button */}
           <div className="flex justify-between items-center">
@@ -361,7 +357,10 @@ export default function ProjectPage() {
               {project?.name || "Loading..."}
             </h1>
             <div className="flex gap-4">
-              <Button variant="outline" onClick={() => router.push("/dashboard")}>
+              <Button
+                variant="outline"
+                onClick={() => router.push("/dashboard")}
+              >
                 Back to Dashboard
               </Button>
             </div>
@@ -416,10 +415,10 @@ export default function ProjectPage() {
               project.phases[index - 1].artifacts.every(
                 (artifact) => artifact.state_name === "Approved"
               );
-            
+
             // Add staggered animation delay based on index
             const staggerClass = `stagger-item stagger-delay-${index + 1}`;
-            
+
             return (
               <div key={phase.phase_id} className={staggerClass}>
                 <ArtifactTable

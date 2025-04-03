@@ -37,7 +37,7 @@ export function PageTransition({ children }: PageTransitionProps) {
 
   return (
     <div
-      className={`min-h-screen transition-all duration-300 ease-in-out ${
+      className={`min-h-full transition-all duration-300 ease-in-out ${
         isVisible
           ? "opacity-100 transform translate-y-0"
           : "opacity-0 transform translate-y-4"

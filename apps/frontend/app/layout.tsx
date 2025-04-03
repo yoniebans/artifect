@@ -59,7 +59,7 @@ export default function RootLayout({
                 <UserButton />
               </SignedIn>
             </header>
-            {children}
+            <main className="flex-1">{children}</main>
             <LoadingOverlay />
             <Toaster />
           </LoadingProvider>
