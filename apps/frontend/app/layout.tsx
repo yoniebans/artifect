@@ -46,7 +46,7 @@ export default function RootLayout({
     >
       <html lang="en" className="dark">
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
         >
           <LoadingProvider>
             <NavigationProgress />
@@ -55,7 +55,7 @@ export default function RootLayout({
                 <UserButton />
               </SignedIn>
             </header>
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 flex flex-col">{children}</main>
             <LoadingOverlay />
             <Toaster />
           </LoadingProvider>

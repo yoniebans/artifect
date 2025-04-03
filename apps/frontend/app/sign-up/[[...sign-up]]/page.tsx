@@ -2,7 +2,7 @@ import { SignUp } from "@clerk/nextjs";
 
 export default function SignUpPage() {
   return (
-    <div className="flex justify-center items-center min-h-full">
+    <div className="flex-1 flex justify-center items-center">
       <SignUp
         appearance={{
           elements: {
@@ -20,7 +20,7 @@ export default function SignUpPage() {
             identityPreviewEditButtonIcon: "text-primary",
           },
         }}
-        redirectUrl="/dashboard"
+        fallbackRedirectUrl="/dashboard"
       />
     </div>
   );
