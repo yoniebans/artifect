@@ -34,7 +34,7 @@ export default function ProjectPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
-
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
@@ -48,12 +48,16 @@ export default function ProjectPage() {
     if (projectLoaded.current) return;
 
     try {
+      setIsInitialLoading(true);
+
       const projectData = await fetchWithLoading<Project>(
         `/project/${id}`,
         "GET",
         undefined,
         undefined,
-        "Loading project details..."
+        "Loading project details...",
+        true,
+        1000 // 1-second minimum loading time
       );
       setProject(projectData);
       projectLoaded.current = true;
@@ -64,6 +68,8 @@ export default function ProjectPage() {
         description: "Failed to load project details. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsInitialLoading(false);
     }
   }, [id, fetchWithLoading, toast]);
 
@@ -217,7 +223,9 @@ export default function ProjectPage() {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
         },
-        `Creating ${artifact.artifact_type_name}...`
+        `Creating ${artifact.artifact_type_name}...`,
+        true,
+        1000 // 1-second minimum loading time
       );
 
       // Replace the stub with the newly created artifact
@@ -233,11 +241,7 @@ export default function ProjectPage() {
       });
     } catch (error) {
       console.error("Error starting artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to start artifact. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     }
   };
 
@@ -253,18 +257,16 @@ export default function ProjectPage() {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
         },
-        `Loading ${artifact.name}...`
+        `Loading ${artifact.name}...`,
+        true,
+        1000 // 1-second minimum loading time
       );
 
       setEditingArtifact(artifactDetail.artifact);
       setInitialMessages(artifactDetail.chat_completion.messages);
     } catch (error) {
-      console.error("Error updating artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update artifact. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Error loading artifact:", error);
+      // Error handling is already done in fetchWithLoading
     }
   };
 
@@ -285,7 +287,9 @@ export default function ProjectPage() {
         "PUT",
         undefined,
         undefined,
-        "Approving artifact..."
+        "Approving artifact...",
+        true,
+        1000 // 1-second minimum loading time
       );
 
       updateExistingArtifact(data.artifact);
@@ -296,11 +300,7 @@ export default function ProjectPage() {
       });
     } catch (error) {
       console.error("Error approving artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to approve artifact. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     }
   };
 
@@ -323,7 +323,8 @@ export default function ProjectPage() {
         undefined,
         undefined,
         "Preparing download...",
-        true
+        true,
+        1000 // 1-second minimum loading time
       );
       await downloadArtifacts(project.phases);
       toast({
@@ -344,8 +345,9 @@ export default function ProjectPage() {
     return (
       <div className="text-center p-8 fade-in">Checking authentication...</div>
     );
-  if (!project)
+  if (!project && !isInitialLoading)
     return <div className="text-center p-8 fade-in">No project found.</div>;
+  if (isInitialLoading) return null;
 
   return (
     <ClientPageTransition>

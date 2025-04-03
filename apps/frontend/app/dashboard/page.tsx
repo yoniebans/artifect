@@ -35,6 +35,7 @@ export default function Dashboard() {
   const router = useRouter();
   const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
   const { setLoading, setLoadingMessage } = useLoading();
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Use ref to prevent infinite fetch loops
   const projectsLoaded = useRef(false);
@@ -63,12 +64,16 @@ export default function Dashboard() {
     if (projectsLoaded.current) return;
 
     try {
+      setIsInitialLoading(true);
+
       const data = await fetchWithLoading<Project[]>(
         "/project",
         "GET",
         undefined,
         undefined,
-        "Loading your projects..."
+        "Loading your projects...",
+        true,
+        1000 // 1-second minimum loading time
       );
 
       setProjects(data);
@@ -84,6 +89,8 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error fetching projects:", error);
       // Error handling is already done in fetchWithLoading
+    } finally {
+      setIsInitialLoading(false);
     }
   }, [fetchWithLoading, toast]);
 
@@ -112,7 +119,9 @@ export default function Dashboard() {
           name: newProjectName,
         },
         undefined,
-        "Creating new project..."
+        "Creating new project...",
+        true,
+        2000 // 2-second minimum loading time
       );
 
       setProjects((prevProjects) => [...prevProjects, newProject]);
@@ -193,34 +202,36 @@ export default function Dashboard() {
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredProjects.length > 0 ? (
-              filteredProjects.map((project, index) => (
-                <Link
-                  href={`/project/${project.project_id}`}
-                  key={project.project_id}
-                  className={`block stagger-item stagger-delay-${
-                    (index % 5) + 1
-                  }`}
-                >
-                  <Card className="transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
-                    <CardHeader>
-                      <CardTitle>{project.name}</CardTitle>
-                      <CardDescription>
-                        Created{" "}
-                        {new Date(project.created_at).toLocaleDateString()}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                </Link>
-              ))
-            ) : (
-              <div className="col-span-2 text-center text-muted-foreground fade-in">
-                No projects found.{" "}
-                {searchTerm
-                  ? "Try a different search term."
-                  : "Create a new project to get started."}
-              </div>
-            )}
+            {
+              !isInitialLoading && filteredProjects.length > 0 ? (
+                filteredProjects.map((project, index) => (
+                  <Link
+                    href={`/project/${project.project_id}`}
+                    key={project.project_id}
+                    className={`block stagger-item stagger-delay-${
+                      (index % 5) + 1
+                    }`}
+                  >
+                    <Card className="transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
+                      <CardHeader>
+                        <CardTitle>{project.name}</CardTitle>
+                        <CardDescription>
+                          Created{" "}
+                          {new Date(project.created_at).toLocaleDateString()}
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  </Link>
+                ))
+              ) : !isInitialLoading ? (
+                <div className="col-span-2 text-center text-muted-foreground fade-in">
+                  No projects found.{" "}
+                  {searchTerm
+                    ? "Try a different search term."
+                    : "Create a new project to get started."}
+                </div>
+              ) : null /* Don't show anything while initially loading */
+            }
           </div>
         </div>
       </div>

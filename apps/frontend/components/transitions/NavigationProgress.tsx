@@ -17,7 +17,7 @@ export function NavigationProgress() {
     const timer1 = setTimeout(() => setProgress(30), 100);
     const timer2 = setTimeout(() => setProgress(60), 300);
     const timer3 = setTimeout(() => setProgress(80), 600);
-    
+
     // Complete the progress and hide the bar
     const timer4 = setTimeout(() => {
       setProgress(100);
@@ -36,11 +36,11 @@ export function NavigationProgress() {
 
   return (
     <div className="fixed top-0 left-0 right-0 h-1 z-[100] bg-transparent">
-      <div 
+      <div
         className="h-full bg-primary transition-all duration-300 ease-out"
-        style={{ 
+        style={{
           width: `${progress}%`,
-          opacity: progress >= 100 ? 0 : 1
+          opacity: progress >= 100 ? 0 : 1,
         }}
       />
     </div>
