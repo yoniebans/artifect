@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
-// Add a module-level variable to track auth failures across the entire app
-let globalAuthFailure = false;
+// Rename global auth failure to be more specific about backend errors
+let globalBackendAuthFailure = false;
 
 // Base URL for the backend - DIRECT CONNECTION TO BACKEND
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -17,6 +17,8 @@ const ongoingRequests = new Map<string, Promise<unknown>>();
  */
 export function useApiClient() {
     const { getToken, userId, isLoaded, isSignedIn } = useAuth();
+    // Track backend auth failures separately from Clerk auth state
+    const [backendAuthFailed, setBackendAuthFailed] = useState(globalBackendAuthFailure);
 
     /**
      * Make a direct authenticated request to the backend API
@@ -27,20 +29,20 @@ export function useApiClient() {
         body?: Record<string, unknown>,
         additionalHeaders?: Record<string, string>
     ) => {
-        // If we already detected an auth failure globally, fail immediately
-        if (globalAuthFailure) {
-            throw new Error("Authentication failed. Please sign in again.");
+        // If we already detected a backend auth failure globally, fail immediately
+        if (globalBackendAuthFailure) {
+            setBackendAuthFailed(true);
+            throw new Error("Backend authentication failed. Please try signing in again.");
         }
 
-        // Wait until auth is loaded
+        // Wait until Clerk auth is loaded
         if (!isLoaded) {
             throw new Error('Auth not loaded yet');
         }
 
-        // Check authentication
+        // Check Clerk authentication
         if (!isSignedIn || !userId) {
-            globalAuthFailure = true; // Set global flag
-            throw new Error('User not authenticated');
+            throw new Error('User not authenticated with Clerk');
         }
 
         try {
@@ -58,8 +60,7 @@ export function useApiClient() {
             // Get token for authentication
             const token = await getToken();
             if (!token) {
-                globalAuthFailure = true; // Set global flag
-                throw new Error('No authentication token available');
+                throw new Error('No Clerk authentication token available');
             }
 
             // Set up request options
@@ -87,11 +88,12 @@ export function useApiClient() {
                     const response = await fetch(fullUrl, requestOptions);
 
                     if (!response.ok) {
-                        // Special handling for 401 Unauthorized errors
+                        // Special handling for 401 Unauthorized errors from backend
                         if (response.status === 401) {
-                            console.error("Authentication failed - token may be expired or invalid");
-                            globalAuthFailure = true; // Set global flag
-                            throw new Error("Authentication expired. Please sign in again.");
+                            console.error("Backend authentication failed - possible user creation error");
+                            globalBackendAuthFailure = true; // Set global flag
+                            setBackendAuthFailed(true);
+                            throw new Error("Backend authentication failed. This might happen if your social login didn't provide required information.");
                         }
 
                         const errorData = await response.json().catch(() => ({
@@ -120,17 +122,17 @@ export function useApiClient() {
         }
     }, [getToken, userId, isLoaded, isSignedIn]); // Properly memoize with dependencies
 
-    // Return whether we've detected a global auth failure
+    // Return backend auth status separately from Clerk auth status
     return {
         fetchApi,
-        isAuthenticated: isSignedIn && !!userId && !globalAuthFailure,
+        isAuthenticated: isSignedIn && !!userId && !backendAuthFailed,
         isLoading: !isLoaded,
         userId,
-        hasAuthFailed: globalAuthFailure
+        hasBackendAuthFailed: backendAuthFailed
     };
 }
 
 // Add a reset function that can be called when the user signs in again
-export function resetAuthFailure() {
-    globalAuthFailure = false;
+export function resetBackendAuthFailure() {
+    globalBackendAuthFailure = false;
 }

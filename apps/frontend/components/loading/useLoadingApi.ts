@@ -1,33 +1,28 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useApiClient } from "@/lib/api-client";
 import { useLoading } from "./LoadingContext";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
 
 export function useLoadingApi() {
-    const { fetchApi, isAuthenticated, isLoading: isAuthLoading, userId, hasAuthFailed } = useApiClient();
+    const { fetchApi, isAuthenticated, isLoading: isAuthLoading, userId, hasBackendAuthFailed } = useApiClient();
     const { setLoading, setLoadingMessage } = useLoading();
     const { toast } = useToast();
-    const router = useRouter();
+    const hasShownBackendErrorToast = useRef(false);
 
-    // Show a toast and redirect once when auth fails
+    // Show toast for backend auth errors, but don't redirect automatically
     useEffect(() => {
-        if (hasAuthFailed) {
-            // Show auth error toast only once
+        if (hasBackendAuthFailed && !hasShownBackendErrorToast.current) {
+            hasShownBackendErrorToast.current = true;
+
             toast({
-                title: "Authentication Error",
-                description: "There was a problem with your account. Please sign in again.",
+                title: "Backend Authentication Error",
+                description: "There was a problem with your account on our servers. This might happen if your social login didn't provide all required information like an email address.",
                 variant: "destructive",
             });
-
-            // Redirect to sign-in page after a short delay
-            setTimeout(() => {
-                router.push("/sign-in?error=auth_failed");
-            }, 500);
         }
-    }, [hasAuthFailed, toast, router]);
+    }, [hasBackendAuthFailed, toast]);
 
     // Enhanced version of fetchApi that displays loading overlay with optional minimum duration
     const fetchWithLoading = useCallback(
@@ -38,11 +33,11 @@ export function useLoadingApi() {
             additionalHeaders?: Record<string, string>,
             loadingMessage = "Loading...",
             showLoadingOverlay = true,
-            minLoadTime = 0 // New parameter for minimum loading time in ms
+            minLoadTime = 0 // Parameter for minimum loading time in ms
         ): Promise<T> => {
             // Skip the request if we already had an auth failure
-            if (hasAuthFailed) {
-                throw new Error("Authentication failed. Please sign in again.");
+            if (hasBackendAuthFailed) {
+                throw new Error("Backend authentication failed. Please try signing in again.");
             }
 
             const startTime = Date.now();
@@ -73,9 +68,8 @@ export function useLoadingApi() {
 
                 const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
 
-                // Only show non-auth errors (auth errors are handled in the useEffect)
-                if (!hasAuthFailed && !errorMessage.includes("Authentication") &&
-                    !errorMessage.includes("auth")) {
+                // Don't show duplicate backend auth errors
+                if (!hasBackendAuthFailed && !errorMessage.includes("Backend authentication")) {
                     // Show error toast if it's a significant failure
                     toast({
                         title: "Error",
@@ -91,7 +85,7 @@ export function useLoadingApi() {
                 }
             }
         },
-        [fetchApi, setLoading, setLoadingMessage, toast, hasAuthFailed]
+        [fetchApi, setLoading, setLoadingMessage, toast, hasBackendAuthFailed]
     );
 
     return {
@@ -99,6 +93,6 @@ export function useLoadingApi() {
         isAuthenticated,
         isAuthLoading,
         userId,
-        hasAuthFailed,
+        hasBackendAuthFailed,
     };
 }

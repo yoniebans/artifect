@@ -25,6 +25,7 @@ import {
   IAIProvider as AIProvider,
   IArtifactEditorResponse,
 } from "@artifect/shared";
+import { BackendAuthErrorDisplay } from "@/components/BackendAuthDisplay";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +34,12 @@ export default function ProjectPage() {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const { toast } = useToast();
   const router = useRouter();
-  const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
+  const {
+    fetchWithLoading,
+    isAuthenticated,
+    isAuthLoading,
+    hasBackendAuthFailed,
+  } = useLoadingApi();
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
@@ -45,7 +51,7 @@ export default function ProjectPage() {
   const projectLoaded = useRef(false);
 
   const fetchProjectDetails = useCallback(async () => {
-    if (projectLoaded.current) return;
+    if (projectLoaded.current || hasBackendAuthFailed) return;
 
     try {
       setIsInitialLoading(true);
@@ -63,18 +69,14 @@ export default function ProjectPage() {
       projectLoaded.current = true;
     } catch (error) {
       console.error("Error fetching project details:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load project details. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     } finally {
       setIsInitialLoading(false);
     }
-  }, [id, fetchWithLoading, toast]);
+  }, [id, fetchWithLoading, hasBackendAuthFailed]);
 
   const fetchAIProviders = useCallback(async () => {
-    if (providersLoaded.current) return;
+    if (providersLoaded.current || hasBackendAuthFailed) return;
 
     try {
       const data = await fetchWithLoading<AIProvider[]>(
@@ -92,28 +94,24 @@ export default function ProjectPage() {
       providersLoaded.current = true;
     } catch (error) {
       console.error("Error fetching AI providers:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load AI providers. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     }
-  }, [fetchWithLoading, toast]);
+  }, [fetchWithLoading, hasBackendAuthFailed]);
 
   // Auth check and initial data loading
   useEffect(() => {
     if (!isAuthLoading) {
-      if (!isAuthenticated) {
+      if (!isAuthenticated && !hasBackendAuthFailed) {
         router.push("/sign-in");
         return;
       }
 
-      // Only fetch if not already loaded
-      if (!projectLoaded.current) {
+      // Only fetch if not already loaded and no backend auth failure
+      if (!projectLoaded.current && !hasBackendAuthFailed) {
         fetchProjectDetails();
       }
 
-      if (!providersLoaded.current) {
+      if (!providersLoaded.current && !hasBackendAuthFailed) {
         fetchAIProviders();
       }
     }
@@ -123,6 +121,7 @@ export default function ProjectPage() {
     router,
     fetchProjectDetails,
     fetchAIProviders,
+    hasBackendAuthFailed,
   ]);
 
   const handleProviderChange = (providerId: string) => {
@@ -211,6 +210,8 @@ export default function ProjectPage() {
     };
 
   const startArtifact = async (artifact: Artifact) => {
+    if (hasBackendAuthFailed) return;
+
     try {
       const data = await fetchWithLoading<IArtifactEditorResponse>(
         "/artifact/new",
@@ -246,7 +247,7 @@ export default function ProjectPage() {
   };
 
   const editArtifact = async (artifact: Artifact) => {
-    if (!artifact.artifact_id) return;
+    if (!artifact.artifact_id || hasBackendAuthFailed) return;
 
     try {
       const artifactDetail = await fetchWithLoading<IArtifactEditorResponse>(
@@ -271,7 +272,7 @@ export default function ProjectPage() {
   };
 
   const approveArtifact = async (artifact: Artifact) => {
-    if (!artifact.artifact_id) return;
+    if (!artifact.artifact_id || hasBackendAuthFailed) return;
 
     try {
       const approvedStateId = artifact.available_transitions.find(
@@ -314,7 +315,7 @@ export default function ProjectPage() {
   }, [project]);
 
   const handleDownloadArtifacts = async () => {
-    if (!project) return;
+    if (!project || hasBackendAuthFailed) return;
 
     try {
       await fetchWithLoading(
@@ -341,12 +342,20 @@ export default function ProjectPage() {
     }
   };
 
-  if (isAuthLoading)
-    return (
-      <div className="text-center p-8 fade-in">Checking authentication...</div>
-    );
-  if (!project && !isInitialLoading)
+  // Show backend auth error UI if there's a backend auth failure
+  if (hasBackendAuthFailed) {
+    return <BackendAuthErrorDisplay />;
+  }
+
+  // Don't render if still checking auth or not authenticated
+  if (isAuthLoading || !isAuthenticated) {
+    return null;
+  }
+
+  if (!project && !isInitialLoading) {
     return <div className="text-center p-8 fade-in">No project found.</div>;
+  }
+
   if (isInitialLoading) return null;
 
   return (

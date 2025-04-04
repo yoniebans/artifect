@@ -11,10 +11,10 @@ export default function Home() {
         <div className="max-w-md w-full p-8 space-y-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold">
-              AI-Assisted Software Engineering
+              AI-Assisted Artifact Engineering
             </h1>
             <p className="mt-4 text-muted-foreground">
-              Design better software with AI assistance
+              Design better artifacts with AI assistance
             </p>
           </div>
 

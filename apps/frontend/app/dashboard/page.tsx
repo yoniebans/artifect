@@ -1,5 +1,3 @@
-// Modify apps/frontend/app/dashboard/page.tsx
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -27,6 +25,7 @@ import { useLoadingApi } from "@/components/loading/useLoadingApi";
 import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
 import { IProject as Project } from "@artifect/shared";
 import { useLoading } from "@/components/loading/LoadingContext";
+import { BackendAuthErrorDisplay } from "@/components/BackendAuthDisplay";
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -35,27 +34,22 @@ export default function Dashboard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { fetchWithLoading, isAuthenticated, isAuthLoading, hasAuthFailed } =
-    useLoadingApi();
+  const {
+    fetchWithLoading,
+    isAuthenticated,
+    isAuthLoading,
+    hasBackendAuthFailed,
+  } = useLoadingApi();
   const { setLoading, setLoadingMessage } = useLoading();
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [authErrorRedirected, setAuthErrorRedirected] = useState(false);
 
   // Use ref to prevent infinite fetch loops
   const projectsLoaded = useRef(false);
 
-  // Immediately redirect if auth has failed
-  useEffect(() => {
-    if (hasAuthFailed && !authErrorRedirected) {
-      setAuthErrorRedirected(true);
-      router.push("/sign-in?error=auth_failed");
-    }
-  }, [hasAuthFailed, router, authErrorRedirected]);
-
   // Handle authentication loading with the central loading system
   useEffect(() => {
-    // Skip loading if auth has failed
-    if (hasAuthFailed) {
+    // Skip loading if backend auth has failed
+    if (hasBackendAuthFailed) {
       setLoading(false);
       return;
     }
@@ -67,7 +61,7 @@ export default function Dashboard() {
       setLoading(false);
 
       // Redirect if not authenticated
-      if (!isAuthenticated && !hasAuthFailed) {
+      if (!isAuthenticated && !hasBackendAuthFailed) {
         router.push("/sign-in");
       }
     }
@@ -82,11 +76,11 @@ export default function Dashboard() {
     router,
     setLoading,
     setLoadingMessage,
-    hasAuthFailed,
+    hasBackendAuthFailed,
   ]);
 
   const fetchProjects = useCallback(async () => {
-    if (projectsLoaded.current || hasAuthFailed) return;
+    if (projectsLoaded.current || hasBackendAuthFailed) return;
 
     try {
       setIsInitialLoading(true);
@@ -117,7 +111,7 @@ export default function Dashboard() {
     } finally {
       setIsInitialLoading(false);
     }
-  }, [fetchWithLoading, toast, hasAuthFailed]);
+  }, [fetchWithLoading, toast, hasBackendAuthFailed]);
 
   // Fetch projects when authenticated
   useEffect(() => {
@@ -125,14 +119,14 @@ export default function Dashboard() {
       isAuthenticated &&
       !isAuthLoading &&
       !projectsLoaded.current &&
-      !hasAuthFailed
+      !hasBackendAuthFailed
     ) {
       fetchProjects();
     }
-  }, [isAuthenticated, fetchProjects, isAuthLoading, hasAuthFailed]);
+  }, [isAuthenticated, fetchProjects, isAuthLoading, hasBackendAuthFailed]);
 
   const createProject = async () => {
-    if (hasAuthFailed) return; // Skip if auth has failed
+    if (hasBackendAuthFailed) return; // Skip if auth has failed
 
     if (!newProjectName.trim()) {
       toast({
@@ -173,8 +167,13 @@ export default function Dashboard() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Don't render anything if we're loading auth, not authenticated, or auth has failed
-  if (isAuthLoading || !isAuthenticated || hasAuthFailed) {
+  // Show backend auth error UI if there's a backend auth failure
+  if (hasBackendAuthFailed) {
+    return <BackendAuthErrorDisplay />;
+  }
+
+  // Don't render anything if we're loading auth or not authenticated
+  if (isAuthLoading || !isAuthenticated) {
     return null;
   }
 
