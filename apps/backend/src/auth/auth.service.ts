@@ -12,7 +12,7 @@ export class AuthService {
   constructor(
     private clerkService: ClerkService,
     private userRepository: UserRepository,
-  ) {}
+  ) { }
 
   /**
    * Validate an authentication token and return the associated user
@@ -42,12 +42,14 @@ export class AuthService {
         throw new UnauthorizedException('User not found in Clerk');
       }
 
+      console.log('clerkUser', clerkUser);
+
       // Create new user in our database
       user = await this.userRepository.create({
         clerkId: clerkUserId,
-        email: clerkUser.email_addresses?.[0]?.email_address || '',
-        firstName: clerkUser.first_name || '',
-        lastName: clerkUser.last_name || '',
+        email: clerkUser.emailAddresses?.[0]?.emailAddress || '',
+        firstName: clerkUser.firstName || '',
+        lastName: clerkUser.lastName || '',
         isAdmin: false, // New users are not admins by default
       });
     }

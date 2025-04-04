@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArtifactTable } from "@/components/ArtifactTable";
-import ArtifactEditor from "@/components/ArtifactEditor";
 import { useToast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { downloadArtifacts } from "@/lib/artifact-download-utils";
 import {
   Select,
@@ -16,77 +14,106 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { useApiClient } from "@/lib/api-client";
+import { useLoadingApi } from "@/components/loading/useLoadingApi";
+import { ArtifactEditorModal } from "@/components/transitions/ArtifactEditorModal";
+import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
 import {
   IProject as Project,
   IArtifact as Artifact,
   IMessage as Message,
   IPhase as Phase,
   IAIProvider as AIProvider,
+  IArtifactEditorResponse,
 } from "@artifect/shared";
+import { BackendAuthErrorDisplay } from "@/components/BackendAuthDisplay";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [editingArtifact, setEditingArtifact] = useState<Artifact | null>(null);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const {
-    fetchApi,
+    fetchWithLoading,
     isAuthenticated,
-    isLoading: isAuthLoading,
-  } = useApiClient();
-
+    isAuthLoading,
+    hasBackendAuthFailed,
+  } = useLoadingApi();
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [aiProviders, setAIProviders] = useState<AIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [hasApprovedArtifacts, setHasApprovedArtifacts] = useState(false);
 
+  // Use refs to prevent infinite fetch loops
+  const providersLoaded = useRef(false);
+  const projectLoaded = useRef(false);
+
   const fetchProjectDetails = useCallback(async () => {
-    setIsLoading(true);
+    if (projectLoaded.current || hasBackendAuthFailed) return;
+
     try {
-      const projectData = await fetchApi(`/project/${id}`);
+      setIsInitialLoading(true);
+
+      const projectData = await fetchWithLoading<Project>(
+        `/project/${id}`,
+        "GET",
+        undefined,
+        undefined,
+        "Loading project details...",
+        true,
+        1000 // 1-second minimum loading time
+      );
       setProject(projectData);
+      projectLoaded.current = true;
     } catch (error) {
       console.error("Error fetching project details:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load project details. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     } finally {
-      setIsLoading(false);
+      setIsInitialLoading(false);
     }
-  }, [id, fetchApi, toast]);
+  }, [id, fetchWithLoading, hasBackendAuthFailed]);
 
   const fetchAIProviders = useCallback(async () => {
+    if (providersLoaded.current || hasBackendAuthFailed) return;
+
     try {
-      const data = await fetchApi("/ai-providers");
+      const data = await fetchWithLoading<AIProvider[]>(
+        "/ai-providers",
+        "GET",
+        undefined,
+        undefined,
+        "Loading AI providers..."
+      );
       setAIProviders(data);
       if (data.length > 0) {
         setSelectedProvider(data[0].id);
         setSelectedModel(data[0].models[0]);
       }
+      providersLoaded.current = true;
     } catch (error) {
       console.error("Error fetching AI providers:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load AI providers. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     }
-  }, [fetchApi, toast]);
+  }, [fetchWithLoading, hasBackendAuthFailed]);
 
+  // Auth check and initial data loading
   useEffect(() => {
     if (!isAuthLoading) {
-      if (!isAuthenticated) {
+      if (!isAuthenticated && !hasBackendAuthFailed) {
         router.push("/sign-in");
         return;
       }
-      fetchProjectDetails();
-      fetchAIProviders();
+
+      // Only fetch if not already loaded and no backend auth failure
+      if (!projectLoaded.current && !hasBackendAuthFailed) {
+        fetchProjectDetails();
+      }
+
+      if (!providersLoaded.current && !hasBackendAuthFailed) {
+        fetchAIProviders();
+      }
     }
   }, [
     isAuthLoading,
@@ -94,6 +121,7 @@ export default function ProjectPage() {
     router,
     fetchProjectDetails,
     fetchAIProviders,
+    hasBackendAuthFailed,
   ]);
 
   const handleProviderChange = (providerId: string) => {
@@ -182,9 +210,10 @@ export default function ProjectPage() {
     };
 
   const startArtifact = async (artifact: Artifact) => {
-    setIsLoading(true);
+    if (hasBackendAuthFailed) return;
+
     try {
-      const data = await fetchApi(
+      const data = await fetchWithLoading<IArtifactEditorResponse>(
         "/artifact/new",
         "POST",
         {
@@ -194,7 +223,10 @@ export default function ProjectPage() {
         {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
-        }
+        },
+        `Creating ${artifact.artifact_type_name}...`,
+        true,
+        1000 // 1-second minimum loading time
       );
 
       // Replace the stub with the newly created artifact
@@ -210,49 +242,38 @@ export default function ProjectPage() {
       });
     } catch (error) {
       console.error("Error starting artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to start artifact. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      // Error handling is already done in fetchWithLoading
     }
   };
 
   const editArtifact = async (artifact: Artifact) => {
-    if (!artifact.artifact_id) return;
+    if (!artifact.artifact_id || hasBackendAuthFailed) return;
 
-    setIsLoading(true);
     try {
-      const artifactDetail = await fetchApi(
+      const artifactDetail = await fetchWithLoading<IArtifactEditorResponse>(
         `/artifact/${artifact.artifact_id}`,
         "GET",
         undefined,
         {
           "X-AI-Provider": selectedProvider,
           "X-AI-Model": selectedModel,
-        }
+        },
+        `Loading ${artifact.name}...`,
+        true,
+        1000 // 1-second minimum loading time
       );
 
       setEditingArtifact(artifactDetail.artifact);
       setInitialMessages(artifactDetail.chat_completion.messages);
     } catch (error) {
-      console.error("Error updating artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update artifact. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      console.error("Error loading artifact:", error);
+      // Error handling is already done in fetchWithLoading
     }
   };
 
   const approveArtifact = async (artifact: Artifact) => {
-    if (!artifact.artifact_id) return;
+    if (!artifact.artifact_id || hasBackendAuthFailed) return;
 
-    setIsLoading(true);
     try {
       const approvedStateId = artifact.available_transitions.find(
         (transition) => transition.state_name === "Approved"
@@ -262,9 +283,14 @@ export default function ProjectPage() {
         throw new Error("Approved state not found in available transitions");
       }
 
-      const data = await fetchApi(
+      const data = await fetchWithLoading<{ artifact: Artifact }>(
         `/artifact/${artifact.artifact_id}/state/${approvedStateId}`,
-        "PUT"
+        "PUT",
+        undefined,
+        undefined,
+        "Approving artifact...",
+        true,
+        1000 // 1-second minimum loading time
       );
 
       updateExistingArtifact(data.artifact);
@@ -275,13 +301,7 @@ export default function ProjectPage() {
       });
     } catch (error) {
       console.error("Error approving artifact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to approve artifact. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      // Error handling is already done in fetchWithLoading
     }
   };
 
@@ -295,10 +315,18 @@ export default function ProjectPage() {
   }, [project]);
 
   const handleDownloadArtifacts = async () => {
-    if (!project) return;
+    if (!project || hasBackendAuthFailed) return;
 
     try {
-      setIsLoading(true);
+      await fetchWithLoading(
+        "", // No actual endpoint, just for loading state
+        "GET",
+        undefined,
+        undefined,
+        "Preparing download...",
+        true,
+        1000 // 1-second minimum loading time
+      );
       await downloadArtifacts(project.phases);
       toast({
         title: "Success",
@@ -311,97 +339,115 @@ export default function ProjectPage() {
         description: "Failed to download artifacts. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  if (isLoading || isAuthLoading)
-    return <div className="text-center p-8">Loading...</div>;
-  if (!project) return <div className="text-center p-8">No project found.</div>;
+  // Show backend auth error UI if there's a backend auth failure
+  if (hasBackendAuthFailed) {
+    return <BackendAuthErrorDisplay />;
+  }
+
+  // Don't render if still checking auth or not authenticated
+  if (isAuthLoading || !isAuthenticated) {
+    return null;
+  }
+
+  if (!project && !isInitialLoading) {
+    return <div className="text-center p-8 fade-in">No project found.</div>;
+  }
+
+  if (isInitialLoading) return null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Top section with project name and user button */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">
-            {project?.name || "Loading..."}
-          </h1>
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Back to Dashboard
-            </Button>
+    <ClientPageTransition>
+      <div className="min-h-[93vh] bg-background text-foreground p-4 sm:p-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Top section with project name and user button */}
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold slide-in-right">
+              {project?.name || "Loading..."}
+            </h1>
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/dashboard")}
+              >
+                Back to Dashboard
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {/* AI Provider selection section */}
-        <div className="flex items-center justify-between">
-          <div className="flex space-x-4">
-            <Select
-              value={selectedProvider}
-              onValueChange={handleProviderChange}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select AI Provider" />
-              </SelectTrigger>
-              <SelectContent>
-                {aiProviders.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select AI Model" />
-              </SelectTrigger>
-              <SelectContent>
-                {aiProviders
-                  .find((p) => p.id === selectedProvider)
-                  ?.models.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
+          {/* AI Provider selection section */}
+          <div className="flex items-center justify-between slide-in-right animation-delay-150">
+            <div className="flex space-x-4">
+              <Select
+                value={selectedProvider}
+                onValueChange={handleProviderChange}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select AI Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiProviders.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
                     </SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select AI Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiProviders
+                    .find((p) => p.id === selectedProvider)
+                    ?.models.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleDownloadArtifacts}
+              disabled={!hasApprovedArtifacts}
+              variant="secondary"
+            >
+              Download Artifacts
+            </Button>
           </div>
-          <Button
-            onClick={handleDownloadArtifacts}
-            disabled={!hasApprovedArtifacts}
-            variant="secondary"
-          >
-            Download Artifacts
-          </Button>
+
+          {/* Artifact tables section */}
+          {project?.phases.map((phase, index) => {
+            const isPreviousPhaseApproved =
+              index === 0 ||
+              project.phases[index - 1].artifacts.every(
+                (artifact) => artifact.state_name === "Approved"
+              );
+
+            // Add staggered animation delay based on index
+            const staggerClass = `stagger-item stagger-delay-${index + 1}`;
+
+            return (
+              <div key={phase.phase_id} className={staggerClass}>
+                <ArtifactTable
+                  phase={phase}
+                  isDisabled={!isPreviousPhaseApproved}
+                  onEditArtifact={editArtifact}
+                  onStartArtifact={startArtifact}
+                  onApproveArtifact={approveArtifact}
+                  onAddArtifact={createStubArtifactHandler(phase)}
+                  onUpdateArtifact={updateExistingArtifact}
+                />
+              </div>
+            );
+          })}
         </div>
 
-        {/* Artifact tables section */}
-        {project?.phases.map((phase, index) => {
-          const isPreviousPhaseApproved =
-            index === 0 ||
-            project.phases[index - 1].artifacts.every(
-              (artifact) => artifact.state_name === "Approved"
-            );
-          return (
-            <ArtifactTable
-              key={phase.phase_id}
-              phase={phase}
-              isDisabled={!isPreviousPhaseApproved}
-              onEditArtifact={editArtifact}
-              onStartArtifact={startArtifact}
-              onApproveArtifact={approveArtifact}
-              onAddArtifact={createStubArtifactHandler(phase)}
-              onUpdateArtifact={updateExistingArtifact}
-            />
-          );
-        })}
-      </div>
-
-      {/* Artifact editor modal */}
-      {editingArtifact && (
-        <ArtifactEditor
+        {/* Artifact editor modal using our new component */}
+        <ArtifactEditorModal
           artifact={editingArtifact}
           initialMessages={initialMessages}
           selectedProvider={selectedProvider}
@@ -418,8 +464,7 @@ export default function ProjectPage() {
             });
           }}
         />
-      )}
-      <Toaster />
-    </div>
+      </div>
+    </ClientPageTransition>
   );
 }

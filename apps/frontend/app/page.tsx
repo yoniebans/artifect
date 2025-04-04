@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+    <div className="flex-1 flex items-center justify-center bg-background">
       <SignedOut>
         <div className="max-w-md w-full p-8 space-y-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold">
-              AI-Assisted Software Engineering
+              AI-Assisted Artifact Engineering
             </h1>
             <p className="mt-4 text-muted-foreground">
-              Design better software with AI assistance
+              Design better artifacts with AI assistance
             </p>
           </div>
 

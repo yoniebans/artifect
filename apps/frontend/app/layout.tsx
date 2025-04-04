@@ -9,6 +9,12 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import "./globals.css";
+import "./animations.css";
+import { LoadingProvider } from "@/components/loading/LoadingContext";
+import { LoadingOverlay } from "@/components/loading/LoadingOverlay";
+import { NavigationProgress } from "@/components/transitions/NavigationProgress";
+import { Toaster } from "@/components/ui/toaster";
+import { dark } from "@clerk/themes";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -32,21 +38,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      afterSignOutUrl="/"
+      appearance={{
+        baseTheme: dark,
+      }}
+    >
       <html lang="en" className="dark">
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
         >
-          <header className="flex justify-end items-center p-4 gap-4 h-16">
-            <SignedOut>
-              <SignInButton />
-              <SignUpButton />
-            </SignedOut>
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-          </header>
-          {children}
+          <LoadingProvider>
+            <NavigationProgress />
+            <header className="flex justify-end items-center p-4 gap-4 h-16">
+              <SignedIn>
+                <UserButton />
+              </SignedIn>
+            </header>
+            <main className="flex-1 flex flex-col">{children}</main>
+            <LoadingOverlay />
+            <Toaster />
+          </LoadingProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,45 +14,89 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useApiClient } from "@/lib/api-client";
+import { useLoadingApi } from "@/components/loading/useLoadingApi";
+import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
 import { IProject as Project } from "@artifect/shared";
+import { useLoading } from "@/components/loading/LoadingContext";
+import { BackendAuthErrorDisplay } from "@/components/BackendAuthDisplay";
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
   const {
-    fetchApi,
+    fetchWithLoading,
     isAuthenticated,
-    isLoading: isAuthLoading,
-  } = useApiClient();
+    isAuthLoading,
+    hasBackendAuthFailed,
+  } = useLoadingApi();
+  const { setLoading, setLoadingMessage } = useLoading();
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Check authentication status
+  // Use ref to prevent infinite fetch loops
+  const projectsLoaded = useRef(false);
+
+  // Handle authentication loading with the central loading system
   useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push("/sign-in");
+    // Skip loading if backend auth has failed
+    if (hasBackendAuthFailed) {
+      setLoading(false);
+      return;
     }
-  }, [isAuthLoading, isAuthenticated, router]);
+
+    if (isAuthLoading) {
+      setLoadingMessage("Checking authentication...");
+      setLoading(true);
+    } else {
+      setLoading(false);
+
+      // Redirect if not authenticated
+      if (!isAuthenticated && !hasBackendAuthFailed) {
+        router.push("/sign-in");
+      }
+    }
+
+    return () => {
+      // Clean up loading state when unmounting
+      setLoading(false);
+    };
+  }, [
+    isAuthLoading,
+    isAuthenticated,
+    router,
+    setLoading,
+    setLoadingMessage,
+    hasBackendAuthFailed,
+  ]);
 
   const fetchProjects = useCallback(async () => {
-    setIsLoading(true);
+    if (projectsLoaded.current || hasBackendAuthFailed) return;
+
     try {
-      console.log("Fetching projects from backend...");
-      const data = await fetchApi("/project");
-      console.log("Projects data received:", data);
+      setIsInitialLoading(true);
+
+      const data = await fetchWithLoading<Project[]>(
+        "/project",
+        "GET",
+        undefined,
+        undefined,
+        "Loading your projects...",
+        true,
+        1000 // 1-second minimum loading time
+      );
+
       setProjects(data);
+      projectsLoaded.current = true;
 
       if (data.length === 0) {
         toast({
@@ -63,24 +107,27 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch projects. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     } finally {
-      setIsLoading(false);
+      setIsInitialLoading(false);
     }
-  }, [fetchApi, toast]);
+  }, [fetchWithLoading, toast, hasBackendAuthFailed]);
 
   // Fetch projects when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (
+      isAuthenticated &&
+      !isAuthLoading &&
+      !projectsLoaded.current &&
+      !hasBackendAuthFailed
+    ) {
       fetchProjects();
     }
-  }, [isAuthenticated, fetchProjects]);
+  }, [isAuthenticated, fetchProjects, isAuthLoading, hasBackendAuthFailed]);
 
   const createProject = async () => {
+    if (hasBackendAuthFailed) return; // Skip if auth has failed
+
     if (!newProjectName.trim()) {
       toast({
         title: "Error",
@@ -91,9 +138,17 @@ export default function Dashboard() {
     }
 
     try {
-      const newProject = await fetchApi("/project/new", "POST", {
-        name: newProjectName,
-      });
+      const newProject = await fetchWithLoading<Project>(
+        "/project/new",
+        "POST",
+        {
+          name: newProjectName,
+        },
+        undefined,
+        "Creating new project...",
+        true,
+        2000 // 2-second minimum loading time
+      );
 
       setProjects((prevProjects) => [...prevProjects, newProject]);
       setNewProjectName("");
@@ -104,11 +159,7 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error("Error creating project:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create project. Please try again.",
-        variant: "destructive",
-      });
+      // Error handling is already done in fetchWithLoading
     }
   };
 
@@ -116,86 +167,104 @@ export default function Dashboard() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Show loading state or authentication check
-  if (isLoading || isAuthLoading) {
-    return <div className="text-center p-8">Loading...</div>;
+  // Show backend auth error UI if there's a backend auth failure
+  if (hasBackendAuthFailed) {
+    return <BackendAuthErrorDisplay />;
   }
 
-  if (!isAuthenticated) {
-    return null; // Will redirect in useEffect
+  // Don't render anything if we're loading auth or not authenticated
+  if (isAuthLoading || !isAuthenticated) {
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-8">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Projects</h1>
-          <div className="flex items-center gap-4">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>Create</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>New Project</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Name
-                    </Label>
-                    <Input
-                      id="name"
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      className="col-span-3"
-                    />
+    <ClientPageTransition>
+      <div className="min-h-full bg-background text-foreground p-8">
+        <div className="max-w-6xl mx-auto">
+          <header className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold slide-in-right">Projects</h1>
+            <div className="flex items-center gap-4">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <Button
+                  onClick={() => setIsDialogOpen(true)}
+                  className="slide-in-right animation-delay-150"
+                >
+                  Create
+                </Button>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>New Project</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">
+                        Name
+                      </Label>
+                      <Input
+                        id="name"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        className="col-span-3"
+                        autoFocus
+                      />
+                    </div>
                   </div>
-                </div>
-                <Button onClick={createProject}>Create</Button>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </header>
-        <div className="relative mb-6">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search projects..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredProjects.length > 0 ? (
-            filteredProjects.map((project) => (
-              <Link
-                href={`/project/${project.project_id}`}
-                key={project.project_id}
-                className="block"
-              >
-                <Card className="transition-shadow hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle>{project.name}</CardTitle>
-                    <CardDescription>
-                      Created{" "}
-                      {new Date(project.created_at).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))
-          ) : (
-            <div className="col-span-2 text-center text-muted-foreground">
-              No projects found.{" "}
-              {searchTerm
-                ? "Try a different search term."
-                : "Create a new project to get started."}
+                  <DialogFooter>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={createProject}>Create</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
-          )}
+          </header>
+          <div className="relative mb-6 slide-in-right animation-delay-300">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder="Search projects..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {
+              !isInitialLoading && filteredProjects.length > 0 ? (
+                filteredProjects.map((project, index) => (
+                  <Link
+                    href={`/project/${project.project_id}`}
+                    key={project.project_id}
+                    className={`block stagger-item stagger-delay-${
+                      (index % 5) + 1
+                    }`}
+                  >
+                    <Card className="transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
+                      <CardHeader>
+                        <CardTitle>{project.name}</CardTitle>
+                        <CardDescription>
+                          Created{" "}
+                          {new Date(project.created_at).toLocaleDateString()}
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  </Link>
+                ))
+              ) : !isInitialLoading ? (
+                <div className="col-span-2 text-center text-muted-foreground fade-in">
+                  No projects found.{" "}
+                  {searchTerm
+                    ? "Try a different search term."
+                    : "Create a new project to get started."}
+                </div>
+              ) : null /* Don't show anything while initially loading */
+            }
+          </div>
         </div>
       </div>
-      <Toaster />
-    </div>
+    </ClientPageTransition>
   );
 }

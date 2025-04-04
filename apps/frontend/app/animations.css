@@ -1,0 +1,108 @@
+@tailwind utilities;
+
+@layer utilities {
+  /* Animation delay utility classes */
+  .animation-delay-150 {
+    animation-delay: 150ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+
+  /* Page transition animations */
+  .page-enter {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 300ms, transform 300ms;
+  }
+
+  /* Modal transition animations */
+  .modal-enter {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  .modal-enter-active {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 200ms, transform 200ms;
+  }
+
+  /* Staggered animation for list items */
+  .stagger-item {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: stagger-fade-in 500ms ease forwards;
+  }
+
+  @keyframes stagger-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Apply animation delay to list items */
+  .stagger-delay-1 {
+    animation-delay: 50ms;
+  }
+
+  .stagger-delay-2 {
+    animation-delay: 100ms;
+  }
+
+  .stagger-delay-3 {
+    animation-delay: 150ms;
+  }
+
+  .stagger-delay-4 {
+    animation-delay: 200ms;
+  }
+
+  .stagger-delay-5 {
+    animation-delay: 250ms;
+  }
+
+  /* Additional animations */
+  .fade-in {
+    animation: fade-in 300ms ease-in-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .slide-in-right {
+    animation: slide-in-right 300ms ease-in-out;
+  }
+
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}
