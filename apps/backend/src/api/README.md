@@ -2,42 +2,95 @@
 
 This module provides the RESTful API for the AI-Assisted Software Engineering Platform, implementing the endpoints required for client applications to interact with the system.
 
-## Overview
+## Architecture
 
-The API Gateway serves as the central entry point for all client requests, routing them to the appropriate services and handling request/response transformations, validation, error handling, and more.
+The API Gateway serves as the central entry point for all client requests, routing them to the appropriate services and handling request/response transformations, validation, error handling, and more. Below is a C4 component diagram illustrating the architecture:
 
-## Key Components
+```mermaid
+C4Component
+    title Artifect API Gateway - C4 Component Diagram
 
-### Controllers
+    Container(frontendApp, "Frontend", "Next.js", "Provides the user interface for project and artifact management")
 
-Controllers handle incoming HTTP requests and return responses to the client:
+    System_Ext(clerkAuth, "Clerk", "External authentication service")
 
-- **HealthController**: Provides a health check endpoint
-- **ProjectController**: Manages project CRUD operations
-- **ArtifactController**: Handles artifact creation, updates, and interactions
-- **AIProviderController**: Provides information about available AI providers
-- **StreamingController**: Handles real-time streaming responses for AI interactions
+    Container_Boundary(backendBoundary, "Backend") {
+        Container_Boundary(apiGatewayBoundary, "API Gateway") {
+            Component(apiModule, "API Module", "NestJS Module", "Main entry point for all API requests")
 
-### DTOs (Data Transfer Objects)
+            Component(healthController, "Health Controller", "NestJS Controller", "Health check endpoint")
+            Component(projectController, "Project Controller", "NestJS Controller", "Project management endpoints")
+            Component(artifactController, "Artifact Controller", "NestJS Controller", "Artifact management endpoints")
+            Component(streamingController, "Streaming Controller", "NestJS Controller", "Server-sent events endpoints")
+            Component(aiProviderController, "AI Provider Controller", "NestJS Controller", "AI provider information endpoints")
+            Component(userController, "User Controller", "NestJS Controller", "User management endpoints for admins")
 
-DTOs define the structure of request and response data:
+            Component(sseService, "SSE Service", "NestJS Service", "Manages server-sent events streams")
 
-- **Project DTOs**: Structures for project creation, summaries, and detailed views
-- **Artifact DTOs**: Structures for artifact operations, states, and AI interactions
-- **AIProvider DTOs**: Structures for AI provider information
-- **Streaming DTOs**: Structures for Server-Sent Events (SSE) streaming responses
+            Component(httpExceptionFilter, "HTTP Exception Filter", "NestJS Filter", "Global exception handling")
+            Component(loggingInterceptor, "Logging Interceptor", "NestJS Interceptor", "Request/response logging")
 
-### Services
+            Component(dtoValidation, "DTO Validation", "Class Transformer/Validator", "Request/response validation")
+            Component(swaggerDecorators, "Swagger Decorators", "Custom Decorators", "API documentation")
+        }
 
-- **SSEService**: Manages Server-Sent Events for real-time streaming of AI responses
+        Component(authGuard, "Auth Guard", "NestJS Guard", "Protects routes from unauthorized access")
+        Component(adminGuard, "Admin Guard", "NestJS Guard", "Restricts access to admin-only routes")
+        Component(authService, "Auth Service", "NestJS Service", "Authentication logic")
 
-### Interceptors
+        Component(workflowOrchestrator, "Workflow Orchestrator", "NestJS Service", "Coordinates business logic")
+        Component(aiAssistant, "AI Assistant", "NestJS Service", "Manages AI provider interactions")
+        Component(repositoriesModule, "Repositories Module", "NestJS Module", "Data access layer")
+    }
 
-- **LoggingInterceptor**: Logs all API requests and responses
+    Rel(frontendApp, apiModule, "Makes requests to", "REST API, SSE")
 
-### Filters
+    Rel(apiModule, healthController, "Routes to")
+    Rel(apiModule, projectController, "Routes to")
+    Rel(apiModule, artifactController, "Routes to")
+    Rel(apiModule, streamingController, "Routes to")
+    Rel(apiModule, aiProviderController, "Routes to")
+    Rel(apiModule, userController, "Routes to")
 
-- **HttpExceptionFilter**: Provides consistent error response formatting
+    Rel(apiModule, httpExceptionFilter, "Uses")
+    Rel(apiModule, loggingInterceptor, "Uses")
+
+    Rel(streamingController, sseService, "Uses")
+
+    Rel(projectController, workflowOrchestrator, "Delegates to")
+    Rel(artifactController, workflowOrchestrator, "Delegates to")
+    Rel(streamingController, workflowOrchestrator, "Delegates to")
+    Rel(aiProviderController, aiAssistant, "Gets info from")
+    Rel(userController, repositoriesModule, "Accesses user data via")
+
+    Rel(apiModule, authGuard, "Protected by")
+    Rel(userController, adminGuard, "Protected by")
+    Rel(authGuard, authService, "Uses")
+    Rel(adminGuard, authService, "Uses")
+
+    Rel(authService, clerkAuth, "Verifies tokens with")
+```
+
+### Key Components
+
+- **Controllers**: Handle incoming HTTP requests and return responses to the client
+
+  - **HealthController**: Provides a health check endpoint
+  - **ProjectController**: Manages project CRUD operations
+  - **ArtifactController**: Handles artifact creation, updates, and interactions
+  - **StreamingController**: Handles real-time streaming responses for AI interactions
+  - **AIProviderController**: Provides information about available AI providers
+  - **UserController**: Admin-only endpoints for user management
+
+- **Cross-Cutting Concerns**:
+
+  - **HTTP Exception Filter**: Provides consistent error response formatting
+  - **Logging Interceptor**: Logs all API requests and responses
+  - **Auth Guard**: Protects routes from unauthorized access
+  - **Admin Guard**: Restricts access to admin-only routes
+
+- **Services**:
+  - **SSE Service**: Manages Server-Sent Events for real-time streaming of AI responses
 
 ## API Endpoints
 
@@ -49,19 +102,19 @@ DTOs define the structure of request and response data:
 
 - **POST /project/new**: Create a new project
 - **GET /project**: List all projects
-- **GET /project/{project_id}**: Get detailed project information
+- **GET /project/:project_id**: Get detailed project information
 
 ### Artifacts
 
 - **POST /artifact/new**: Create a new artifact
-- **PUT /artifact/{artifact_id}**: Update an artifact
-- **GET /artifact/{artifact_id}**: Get artifact details
-- **PUT /artifact/{artifact_id}/ai**: Interact with an artifact using AI
-- **PUT /artifact/{artifact_id}/state/{state_id}**: Change artifact state
+- **PUT /artifact/:artifact_id**: Update an artifact
+- **GET /artifact/:artifact_id**: Get artifact details
+- **PUT /artifact/:artifact_id/ai**: Interact with an artifact using AI
+- **PUT /artifact/:artifact_id/state/:state_id**: Change artifact state
 
 ### Streaming Endpoints
 
-- **POST /stream/artifact/{artifact_id}/ai**: Stream interaction with an artifact using AI, with real-time updates delivered via Server-Sent Events (SSE)
+- **POST /stream/artifact/:artifact_id/ai**: Stream interaction with an artifact using AI, with real-time updates delivered via Server-Sent Events (SSE)
 
 ### AI Providers
 
