@@ -1,3 +1,5 @@
+// Modify apps/frontend/app/dashboard/page.tsx
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -33,15 +35,31 @@ export default function Dashboard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { fetchWithLoading, isAuthenticated, isAuthLoading } = useLoadingApi();
+  const { fetchWithLoading, isAuthenticated, isAuthLoading, hasAuthFailed } =
+    useLoadingApi();
   const { setLoading, setLoadingMessage } = useLoading();
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [authErrorRedirected, setAuthErrorRedirected] = useState(false);
 
   // Use ref to prevent infinite fetch loops
   const projectsLoaded = useRef(false);
 
+  // Immediately redirect if auth has failed
+  useEffect(() => {
+    if (hasAuthFailed && !authErrorRedirected) {
+      setAuthErrorRedirected(true);
+      router.push("/sign-in?error=auth_failed");
+    }
+  }, [hasAuthFailed, router, authErrorRedirected]);
+
   // Handle authentication loading with the central loading system
   useEffect(() => {
+    // Skip loading if auth has failed
+    if (hasAuthFailed) {
+      setLoading(false);
+      return;
+    }
+
     if (isAuthLoading) {
       setLoadingMessage("Checking authentication...");
       setLoading(true);
@@ -49,7 +67,7 @@ export default function Dashboard() {
       setLoading(false);
 
       // Redirect if not authenticated
-      if (!isAuthenticated) {
+      if (!isAuthenticated && !hasAuthFailed) {
         router.push("/sign-in");
       }
     }
@@ -58,10 +76,17 @@ export default function Dashboard() {
       // Clean up loading state when unmounting
       setLoading(false);
     };
-  }, [isAuthLoading, isAuthenticated, router, setLoading, setLoadingMessage]);
+  }, [
+    isAuthLoading,
+    isAuthenticated,
+    router,
+    setLoading,
+    setLoadingMessage,
+    hasAuthFailed,
+  ]);
 
   const fetchProjects = useCallback(async () => {
-    if (projectsLoaded.current) return;
+    if (projectsLoaded.current || hasAuthFailed) return;
 
     try {
       setIsInitialLoading(true);
@@ -92,16 +117,23 @@ export default function Dashboard() {
     } finally {
       setIsInitialLoading(false);
     }
-  }, [fetchWithLoading, toast]);
+  }, [fetchWithLoading, toast, hasAuthFailed]);
 
   // Fetch projects when authenticated
   useEffect(() => {
-    if (isAuthenticated && !isAuthLoading && !projectsLoaded.current) {
+    if (
+      isAuthenticated &&
+      !isAuthLoading &&
+      !projectsLoaded.current &&
+      !hasAuthFailed
+    ) {
       fetchProjects();
     }
-  }, [isAuthenticated, fetchProjects, isAuthLoading]);
+  }, [isAuthenticated, fetchProjects, isAuthLoading, hasAuthFailed]);
 
   const createProject = async () => {
+    if (hasAuthFailed) return; // Skip if auth has failed
+
     if (!newProjectName.trim()) {
       toast({
         title: "Error",
@@ -141,9 +173,8 @@ export default function Dashboard() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Don't render anything if we're loading auth or not authenticated
-  // Let the LoadingOverlay handle the visual feedback
-  if (isAuthLoading || !isAuthenticated) {
+  // Don't render anything if we're loading auth, not authenticated, or auth has failed
+  if (isAuthLoading || !isAuthenticated || hasAuthFailed) {
     return null;
   }
 

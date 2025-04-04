@@ -3,6 +3,9 @@
 import { useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
+// Add a module-level variable to track auth failures across the entire app
+let globalAuthFailure = false;
+
 // Base URL for the backend - DIRECT CONNECTION TO BACKEND
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -24,6 +27,11 @@ export function useApiClient() {
         body?: Record<string, unknown>,
         additionalHeaders?: Record<string, string>
     ) => {
+        // If we already detected an auth failure globally, fail immediately
+        if (globalAuthFailure) {
+            throw new Error("Authentication failed. Please sign in again.");
+        }
+
         // Wait until auth is loaded
         if (!isLoaded) {
             throw new Error('Auth not loaded yet');
@@ -31,6 +39,7 @@ export function useApiClient() {
 
         // Check authentication
         if (!isSignedIn || !userId) {
+            globalAuthFailure = true; // Set global flag
             throw new Error('User not authenticated');
         }
 
@@ -48,6 +57,10 @@ export function useApiClient() {
 
             // Get token for authentication
             const token = await getToken();
+            if (!token) {
+                globalAuthFailure = true; // Set global flag
+                throw new Error('No authentication token available');
+            }
 
             // Set up request options
             const requestOptions: RequestInit = {
@@ -77,6 +90,7 @@ export function useApiClient() {
                         // Special handling for 401 Unauthorized errors
                         if (response.status === 401) {
                             console.error("Authentication failed - token may be expired or invalid");
+                            globalAuthFailure = true; // Set global flag
                             throw new Error("Authentication expired. Please sign in again.");
                         }
 
@@ -106,10 +120,17 @@ export function useApiClient() {
         }
     }, [getToken, userId, isLoaded, isSignedIn]); // Properly memoize with dependencies
 
+    // Return whether we've detected a global auth failure
     return {
         fetchApi,
-        isAuthenticated: isSignedIn && !!userId,
+        isAuthenticated: isSignedIn && !!userId && !globalAuthFailure,
         isLoading: !isLoaded,
-        userId
+        userId,
+        hasAuthFailed: globalAuthFailure
     };
+}
+
+// Add a reset function that can be called when the user signs in again
+export function resetAuthFailure() {
+    globalAuthFailure = false;
 }
