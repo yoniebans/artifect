@@ -2,55 +2,75 @@
 
 This module provides integration with AI services for the AI-Assisted Software Engineering Platform.
 
-## Overview
+## Architecture
 
-The AI module connects the application with various AI providers (e.g., OpenAI, Anthropic) to generate artifacts based on templates and user inputs. It handles the communication with these services, processes responses, and formats the content appropriately.
+The AI module connects the application with various AI providers (e.g., OpenAI, Anthropic) to generate artifacts based on templates and user inputs. It handles the communication with these services, processes responses, and formats the content appropriately. Below is a C4 component diagram illustrating the system architecture:
 
-## Directory Structure
+```mermaid
+C4Component
+    title Artifect AI Module - C4 Component Diagram
 
+    Container(workflowOrchestrator, "Workflow Orchestrator", "NestJS Module", "Coordinates business logic and delegates AI operations")
+
+    System_Ext(anthropicAPI, "Anthropic API", "External AI service providing Claude models")
+    System_Ext(openaiAPI, "OpenAI API", "External AI service providing GPT models")
+
+    Container_Boundary(aiModuleBoundary, "AI Module") {
+        Component(aiAssistantService, "AI Assistant Service", "NestJS Service", "High-level service for generating and processing AI content")
+
+        Component(aiProviderFactory, "AI Provider Factory", "NestJS Service", "Creates appropriate AI provider instances")
+
+        Component(responseParser, "Response Parser", "Utility", "Extracts content and commentary from AI responses")
+
+        Container_Boundary(providersGroup, "AI Providers") {
+            Component(anthropicProvider, "Anthropic Provider", "NestJS Service", "Handles standard interactions with Anthropic API")
+            Component(anthropicFunctionProvider, "Anthropic Function Calling Provider", "NestJS Service", "Uses Anthropic's tool use capabilities")
+            Component(openaiProvider, "OpenAI Provider", "NestJS Service", "Handles standard interactions with OpenAI API")
+            Component(openAIFunctionProvider, "OpenAI Function Calling Provider", "NestJS Service", "Uses OpenAI's function calling capabilities")
+        }
+    }
+
+    Container_Boundary(templatesBoundary, "Templates Module") {
+        Component(templateManager, "Template Manager", "NestJS Service", "Manages and renders prompt templates")
+    }
+
+    Rel(workflowOrchestrator, aiAssistantService, "Generates AI content using")
+
+    Rel(aiAssistantService, aiProviderFactory, "Gets appropriate provider from")
+    Rel(aiAssistantService, templateManager, "Gets AI prompts from")
+
+    Rel(aiProviderFactory, anthropicProvider, "Creates")
+    Rel(aiProviderFactory, anthropicFunctionProvider, "Creates")
+    Rel(aiProviderFactory, openaiProvider, "Creates")
+    Rel(aiProviderFactory, openAIFunctionProvider, "Creates")
+
+    Rel(anthropicProvider, responseParser, "Parses responses using")
+    Rel(openaiProvider, responseParser, "Parses responses using")
+    Rel(anthropicProvider, anthropicAPI, "Makes API calls to")
+    Rel(anthropicFunctionProvider, anthropicAPI, "Makes API calls to")
+    Rel(openaiProvider, openaiAPI, "Makes API calls to")
+    Rel(openAIFunctionProvider, openaiAPI, "Makes API calls to")
 ```
-src/ai/
-├── interfaces/            # Common interfaces
-├── openai/                # OpenAI provider implementations
-├── anthropic/             # Anthropic provider implementations
-├── ai-provider.factory.ts # Factory for creating providers
-├── ai-assistant.service.ts # Main service for AI interactions
-├── response-parser.ts     # Utilities for parsing AI responses
-├── ai.config.ts           # Configuration
-└── ai.module.ts           # NestJS module definition
-```
 
-## Components
+### Key Components
 
-### Core Interfaces
-
-- **AIProviderInterface**: Defines the contract for all AI provider implementations
-- **AIMessage**: Interface for AI conversation messages
-- **AIModelResponse**: Interface for structured AI responses
-
-### Providers
-
-#### OpenAI
-
-- **OpenAIProvider**: Basic implementation for OpenAI's GPT models using traditional prompting
-- **OpenAIFunctionCallingProvider**: Enhanced implementation using OpenAI's function calling capabilities
-
-#### Anthropic
-
-- **AnthropicProvider**: Basic implementation for Anthropic's Claude models using traditional prompting
-- **AnthropicFunctionCallingProvider**: Enhanced implementation using Anthropic's tool use capabilities
-
-### Utilities
-
-- **response-parser.ts**: Functions to extract content and commentary from AI responses
-
-### Factory
-
-- **AIProviderFactory**: Factory pattern for creating and managing AI providers
-
-### Main Service
-
-- **AIAssistantService**: Coordinates the AI interactions, including generating artifacts, handling updates, and logging
+- **AI Assistant Service**: High-level service providing methods for artifact generation and AI interactions
+  - Manages both standard and streaming AI interactions
+  - Coordinates prompt templates and context building
+  - Maintains interaction logs for debugging and analysis
+- **AI Provider Factory**: Factory for creating and managing AI provider instances
+  - Creates appropriate provider based on configuration or explicit selection
+  - Manages registration and lookup of available providers
+  - Handles provider fallbacks and defaults
+- **Response Parser**: Utility for standardizing AI responses across providers
+  - Extracts artifact content and commentary from raw responses
+  - Validates response formats and structure
+  - Handles error cases and empty responses
+- **AI Providers**: Implementations for different AI services
+  - **Anthropic Provider**: Standard text generation with Claude models
+  - **Anthropic Function Calling Provider**: Structured outputs using tool use
+  - **OpenAI Provider**: Standard text generation with GPT models
+  - **OpenAI Function Calling Provider**: Structured outputs using function calling
 
 ## Provider Implementation Approaches
 
@@ -60,12 +80,162 @@ The module offers two implementation approaches for each AI provider:
 
    - Suitable for simpler use cases
    - More flexible as it works with any model version
+   - Found in `anthropic.provider.ts` and `openai.provider.ts`
 
 2. **Function/Tool-based**: Uses the provider's function calling or tool use capabilities
    - Provides more structured output
    - Better separation of artifact content and commentary
    - Requires models that support these capabilities
    - Often results in higher quality outputs for structured tasks
+   - Found in `anthropic-function-calling.provider.ts` and `openai-function-calling.provider.ts`
+
+## Interfaces and Models
+
+### AI Provider Interface
+
+All AI providers implement this common interface:
+
+```typescript
+interface AIProviderInterface {
+  generateResponse(
+    systemPrompt: string,
+    userPrompt: string,
+    artifactFormat: ArtifactFormat,
+    isUpdate: boolean,
+    conversationHistory?: AIMessage[],
+    model?: string,
+  ): Promise<AIRequestResponse>;
+
+  parseResponse(
+    response: string,
+    artifactFormat: ArtifactFormat,
+    isUpdate: boolean,
+  ): Promise<AIModelResponse>;
+
+  generateStreamingResponse?(
+    systemPrompt: string,
+    userPrompt: string,
+    artifactFormat: ArtifactFormat,
+    isUpdate: boolean,
+    conversationHistory?: AIMessage[],
+    model?: string,
+    onChunk?: (chunk: string) => void,
+  ): Promise<AIRequestResponse>;
+}
+```
+
+### Response Models
+
+```typescript
+interface AIModelResponse {
+  rawResponse: string;
+  artifactContent?: string;
+  commentary?: string;
+}
+
+interface AIRequestResponse {
+  formattedSystemPrompt?: string;
+  formattedUserPrompt: string;
+  rawResponse: string;
+  parsedResponse?: AIModelResponse;
+  metadata?: Record<string, any>;
+}
+
+interface AIMessage {
+  role: string;
+  content: string;
+}
+```
+
+## Key Features
+
+### Multiple Provider Support
+
+The AI Module supports multiple providers and integration methods:
+
+- **Anthropic (Claude)**: Standard text completion and streaming with Claude models
+- **OpenAI (GPT)**: Standard text completion and streaming with GPT models
+- **Structured Outputs**: Tool use (Anthropic) and function calling (OpenAI) for consistent response formats
+
+### AI Response Formats
+
+The module standardizes responses across providers into two key components:
+
+- **Artifact Content**: The actual content to be stored in the artifact (e.g., requirements document, design diagram)
+- **Commentary**: Additional explanations, questions, or notes from the AI to the user
+
+### Streaming Responses
+
+For real-time user experience, the module supports streaming responses:
+
+- **Chunk-by-Chunk Processing**: Delivers content as it's generated
+- **Progress Reporting**: Allows for real-time UI updates
+- **Completion Handling**: Finalizes responses once complete
+
+### Logging and Debugging
+
+Comprehensive logging for troubleshooting AI interactions:
+
+- **Logs Input Context**: Stores the context provided to the AI
+- **Logs Raw Responses**: Records the unmodified responses from providers
+- **Logs Parsed Results**: Records the extracted content and commentary
+- **Error Tracking**: Captures and logs errors during AI interactions
+
+All AI interactions are logged to the `_ai_logs` directory with timestamps and relevant context information. These logs can be useful for debugging, tracking, and improving the AI interactions.
+
+## Usage Examples
+
+### Basic Artifact Generation
+
+```typescript
+import { AIAssistantService } from './ai/ai-assistant.service';
+
+@Injectable()
+class MyService {
+  constructor(private aiAssistant: AIAssistantService) {}
+
+  async generateArtifact(context: Record<string, any>) {
+    const result = await this.aiAssistant.generateArtifact(
+      context, // Context data for generation
+      false, // Not an update
+      undefined, // No user message
+      'anthropic', // Provider ID
+      'claude-3-opus-20240229', // Model name
+    );
+
+    const { artifactContent, commentary } = result;
+    // Use the generated content...
+  }
+}
+```
+
+### Streaming Artifact Updates
+
+```typescript
+import { AIAssistantService } from './ai/ai-assistant.service';
+
+@Injectable()
+class StreamingService {
+  constructor(private aiAssistant: AIAssistantService) {}
+
+  async streamArtifactUpdate(
+    context: Record<string, any>,
+    userMessage: string,
+    onChunk: (chunk: string) => void,
+  ) {
+    const result = await this.aiAssistant.generateStreamingArtifact(
+      context, // Context data
+      true, // Is an update
+      userMessage, // User's request
+      onChunk, // Callback for chunks
+      'openai', // Provider ID
+      'gpt-4', // Model name
+    );
+
+    return result; // Final complete result
+  }
+}
+```
 
 ## Configuration
 
@@ -78,85 +248,26 @@ DEFAULT_AI_PROVIDER=anthropic
 # OpenAI configuration
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_DEFAULT_MODEL=gpt-4
+OPENAI_BASE_URL=https://api.openai.com/v1 (optional)
+OPENAI_ORGANIZATION_ID=your-org-id (optional)
 
 # Anthropic configuration
 ANTHROPIC_API_KEY=your-anthropic-api-key
 ANTHROPIC_DEFAULT_MODEL=claude-3-opus-20240229
+ANTHROPIC_BASE_URL=https://api.anthropic.com (optional)
+ANTHROPIC_API_VERSION=2023-06-01 (optional)
 ```
 
 See `ai.config.ts` for all available configuration options and defaults.
 
-## Usage
+## Error Handling
 
-1. Import the AIModule in your application module:
+The AI Module implements robust error handling:
 
-```typescript
-import { Module } from '@nestjs/common';
-import { AIModule } from './ai';
-
-@Module({
-  imports: [AIModule],
-  // ...
-})
-export class AppModule {}
-```
-
-2. Inject and use the AIAssistantService:
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { AIAssistantService } from './ai';
-
-@Injectable()
-export class YourService {
-  constructor(private aiAssistantService: AIAssistantService) {}
-
-  async generateNewArtifact(context) {
-    return this.aiAssistantService.kickoffArtifactInteraction(context);
-  }
-
-  async updateArtifact(context, userMessage) {
-    return this.aiAssistantService.updateArtifact(context, userMessage);
-  }
-}
-```
-
-3. To use a specific provider, specify it when calling:
-
-```typescript
-// Use default OpenAI provider
-await this.aiAssistantService.kickoffArtifactInteraction(context, 'openai');
-
-// Use OpenAI with function calling
-await this.aiAssistantService.kickoffArtifactInteraction(
-  context,
-  'openai-function-calling',
-);
-
-// Use Anthropic with tool use
-await this.aiAssistantService.updateArtifact(
-  context,
-  userMessage,
-  'anthropic-function-calling',
-);
-```
-
-## Streaming Support
-
-The AI module supports streaming responses for a better user experience:
-
-```typescript
-await this.aiAssistantService.generateStreamingArtifact(
-  context,
-  false,
-  userMessage,
-  (chunk) => {
-    // Handle each chunk of the response
-    console.log(chunk);
-  },
-  'anthropic', // Provider ID (optional)
-);
-```
+- **API Errors**: Handles rate limiting, authentication, and service errors
+- **Timeout Handling**: Manages long-running requests and retries
+- **Content Validation**: Ensures responses contain required elements
+- **Graceful Degradation**: Falls back to alternative providers when available
 
 ## Testing
 
@@ -200,7 +311,3 @@ To add a new AI provider:
 5. Register it in the `AIProviderFactory`
 6. Update the configuration validation schema in `ai.config.ts`
 7. Update the `AIModule` to include the new provider
-
-## Logging
-
-All AI interactions are logged to the `_ai_logs` directory with timestamps and relevant context information. These logs can be useful for debugging, tracking, and improving the AI interactions.
