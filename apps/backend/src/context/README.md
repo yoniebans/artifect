@@ -6,6 +6,69 @@ This module is responsible for gathering and organizing contextual information f
 
 The Context Manager builds the complete context required for AI-assisted artifact generation based on the artifact type and dependencies. It resolves dependencies between different artifact types, ensuring that the appropriate previous artifacts are included in the context.
 
+## Architecture
+
+The following C4 component diagram illustrates the structure and relationships within the Context Module:
+
+```mermaid
+C4Component
+    title Artifect Context Module - C4 Component Diagram
+
+    Container(workflowOrchestrator, "Workflow Orchestrator", "NestJS Module", "Coordinates business logic and delegates to context manager")
+
+    Container(aiAssistant, "AI Assistant", "NestJS Service", "Uses context to generate AI content")
+
+    Container_Boundary(contextModuleBoundary, "Context Module") {
+        Component(contextModule, "Context Manager Module", "NestJS Module", "Main module for context management")
+
+        Component(contextService, "Context Manager Service", "NestJS Service", "Builds context from artifact dependencies")
+
+        Component(contextInterface, "Context Manager Interface", "TypeScript Interface", "Defines contract for context management")
+
+        Component(contextData, "Context Data", "TypeScript Interface", "Structure for context data")
+
+        Component(artifactWithRelations, "Artifact With Relations", "TypeScript Type", "Extended artifact type with relationships")
+
+        Component(dependencyResolver, "Dependency Resolver", "Service Method", "Resolves artifact dependencies for context")
+
+        Component(contextValidator, "Context Validator", "Service Method", "Validates context completeness and correctness")
+    }
+
+    Container_Boundary(repoBoundary, "Repositories") {
+        Component(artifactRepo, "Artifact Repository", "NestJS Service", "Data access for artifacts and dependencies")
+        Component(projectRepo, "Project Repository", "NestJS Service", "Data access for projects")
+    }
+
+    Container_Boundary(cacheBoundary, "Cache") {
+        Component(cacheService, "Cache Service", "NestJS Service", "Caches artifact types and relationships")
+    }
+
+    SystemDb(database, "PostgreSQL Database", "Stores artifacts, projects, and relationships")
+
+    Rel(workflowOrchestrator, contextService, "Gets context for AI generation via")
+    Rel(aiAssistant, contextService, "Uses context from")
+
+    Rel(contextModule, contextService, "Provides")
+    Rel(contextService, contextInterface, "Implements")
+
+    Rel(contextService, contextData, "Creates and returns")
+    Rel(contextService, artifactWithRelations, "Uses to process artifacts")
+    Rel(contextService, dependencyResolver, "Contains")
+    Rel(contextService, contextValidator, "Contains")
+
+    Rel(contextService, artifactRepo, "Fetches artifacts and dependencies via")
+    Rel(contextService, cacheService, "Accesses type information via")
+
+    Rel(artifactRepo, database, "Reads artifact data from")
+    Rel(projectRepo, database, "Reads project data from")
+
+    UpdateRelStyle(workflowOrchestrator, contextService, $offsetY="-10")
+    UpdateRelStyle(contextService, artifactRepo, $offsetX="-20")
+    UpdateRelStyle(contextService, cacheService, $offsetX="20")
+```
+
+The diagram shows how the Context Module interacts with the Workflow Orchestrator, AI Assistant, repositories, and cache service to build comprehensive context for artifact generation.
+
 ## Features
 
 - **Dynamic Context Building**: Builds context differently based on artifact type
