@@ -6,6 +6,68 @@ This module provides authentication and authorization for the AI-Assisted Softwa
 
 The Auth Module handles user authentication, token verification, and user management with integration to Clerk's authentication services.
 
+## Architecture
+
+The following C4 component diagram illustrates the structure and relationships within the Auth Module:
+
+```mermaid
+C4Component
+    title Artifect Auth Module - C4 Component Diagram
+
+    Container(apiGateway, "API Gateway", "NestJS Module", "Routes client requests to appropriate services")
+
+    System_Ext(clerkAuth, "Clerk", "External authentication service for identity management")
+    SystemDb(database, "PostgreSQL Database", "Stores user data and relationships")
+
+    Container_Boundary(authModuleBoundary, "Auth Module") {
+        Component(authModule, "Auth Module", "NestJS Module", "Main module that binds auth components")
+
+        Component(authService, "Auth Service", "NestJS Service", "Core authentication logic and user management")
+        Component(clerkService, "Clerk Service", "NestJS Service", "Integration with Clerk authentication API")
+
+        Component(authGuard, "Auth Guard", "NestJS Guard", "Protects routes from unauthorized access")
+        Component(adminGuard, "Admin Guard", "NestJS Guard", "Restricts access to admin-only routes")
+
+        Component(publicDecorator, "Public Decorator", "NestJS Decorator", "Marks routes as public (no auth required)")
+        Component(adminDecorator, "Admin Decorator", "NestJS Decorator", "Marks routes as admin-only")
+        Component(userDecorator, "CurrentUser Decorator", "NestJS Decorator", "Extracts authenticated user from request")
+    }
+
+    Container_Boundary(repoBoundary, "Repositories") {
+        Component(userRepo, "User Repository", "NestJS Service", "Data access layer for user management")
+    }
+
+    Container_Boundary(configBoundary, "Configuration") {
+        Component(configService, "Config Service", "NestJS Service", "Provides configuration values")
+    }
+
+    Rel(apiGateway, authGuard, "Uses to protect routes")
+    Rel(apiGateway, authService, "Authenticates users via")
+
+    Rel(authModule, authService, "Provides")
+    Rel(authModule, clerkService, "Provides")
+    Rel(authModule, authGuard, "Registers globally via APP_GUARD")
+
+    Rel(authService, clerkService, "Uses to verify tokens")
+    Rel(authService, userRepo, "Manages users via")
+
+    Rel(clerkService, clerkAuth, "Verifies tokens with")
+    Rel(clerkService, configService, "Gets configuration from")
+
+    Rel(authGuard, authService, "Validates tokens via")
+    Rel(authGuard, publicDecorator, "Checks for presence of")
+
+    Rel(adminGuard, authService, "Checks admin status via")
+    Rel(adminDecorator, adminGuard, "Applies")
+
+    Rel(userRepo, database, "Persists to")
+
+    UpdateRelStyle(apiGateway, authGuard, $offsetY="-10")
+    UpdateRelStyle(authModule, authGuard, $offsetY="-5")
+```
+
+The diagram shows how the Auth Module integrates with the API Gateway, external Clerk service, and internal database through the User Repository.
+
 ## Configuration
 
 The module requires the following environment variables:
