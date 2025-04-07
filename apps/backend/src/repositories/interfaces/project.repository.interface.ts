@@ -3,11 +3,22 @@
 import { Project } from '@prisma/client';
 import { BaseRepositoryInterface } from './base.repository.interface';
 
+export interface ProjectCreateDTO {
+    name: string;
+    userId: number;
+    projectTypeId?: number; // Optional - will use default if not provided
+}
+
+export interface ProjectUpdateDTO {
+    name?: string;
+    projectTypeId?: number; // Allow changing project type
+}
+
 export interface ProjectRepositoryInterface extends BaseRepositoryInterface<
     Project,
     number,
-    { name: string, userId: number },
-    { name: string }
+    ProjectCreateDTO,
+    ProjectUpdateDTO
 > {
     findByIdAndUserId(id: number, userId: number): Promise<Project | null>;
 
@@ -16,6 +27,8 @@ export interface ProjectRepositoryInterface extends BaseRepositoryInterface<
     getProjectMetadata(projectId: number, userId?: number): Promise<{
         id: number;
         name: string;
+        projectTypeId: number | null;
+        projectTypeName: string | null;
         currentPhaseId: number | null;
         currentPhaseName: string | null;
         lastUpdate: Date | null;
@@ -28,4 +41,9 @@ export interface ProjectRepositoryInterface extends BaseRepositoryInterface<
     }[]>;
 
     isProjectOwner(projectId: number, userId: number): Promise<boolean>;
+
+    // Simplified project type methods
+    findByProjectType(projectTypeId: number): Promise<Project[]>;
+
+    findByUserIdAndProjectType(userId: number, projectTypeId: number): Promise<Project[]>;
 }

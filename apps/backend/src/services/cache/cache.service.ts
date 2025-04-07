@@ -1,6 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { ArtifactFormat, ArtifactTypeInfo, CacheServiceInterface } from './cache.service.interface';
+import {
+    ArtifactFormat,
+    ArtifactTypeInfo,
+    CacheServiceInterface,
+    ProjectTypeInfo
+} from './cache.service.interface';
 
 @Injectable()
 export class CacheService implements CacheServiceInterface, OnModuleInit {
@@ -10,6 +15,11 @@ export class CacheService implements CacheServiceInterface, OnModuleInit {
     private stateTransitions: Map<string, number> = new Map();
     private lifecyclePhases: Map<string, number> = new Map();
     private artifactFormats: Map<string, ArtifactFormat> = new Map();
+
+    // Simplified project type caching
+    private projectTypes: Map<number, ProjectTypeInfo> = new Map();
+    private defaultProjectType: ProjectTypeInfo | null = null;
+    private projectTypePhases: Map<number, number[]> = new Map();
 
     constructor(private prisma: PrismaService) { }
 
@@ -31,6 +41,7 @@ export class CacheService implements CacheServiceInterface, OnModuleInit {
         await this.loadStateTransitions();
         await this.loadLifecyclePhases();
         await this.loadArtifactFormats();
+        await this.loadProjectTypes();
 
         this.initialized = true;
     }
@@ -117,6 +128,48 @@ export class CacheService implements CacheServiceInterface, OnModuleInit {
     }
 
     /**
+     * Load project types from database
+     */
+    private async loadProjectTypes(): Promise<void> {
+        const projectTypes = await this.prisma.projectType.findMany({
+            where: { isActive: true },
+            include: {
+                lifecyclePhases: {
+                    orderBy: {
+                        order: 'asc'
+                    }
+                }
+            }
+        });
+
+        this.projectTypes.clear();
+        this.projectTypePhases.clear();
+        this.defaultProjectType = null;
+
+        if (projectTypes.length > 0) {
+            // Set the first one as default for now
+            this.defaultProjectType = {
+                id: projectTypes[0].id,
+                name: projectTypes[0].name
+            };
+
+            // Cache all project types and their phases
+            for (const projectType of projectTypes) {
+                this.projectTypes.set(projectType.id, {
+                    id: projectType.id,
+                    name: projectType.name
+                });
+
+                // Cache phases for this project type
+                this.projectTypePhases.set(
+                    projectType.id,
+                    projectType.lifecyclePhases.map(phase => phase.id)
+                );
+            }
+        }
+    }
+
+    /**
      * Get lifecycle phase ID by name
      * @param name Phase name
      * @returns Phase ID or null if not found
@@ -179,5 +232,34 @@ export class CacheService implements CacheServiceInterface, OnModuleInit {
         if (!fromId || !toId) return null;
 
         return this.stateTransitions.get(`${fromId}:${toId}`) || null;
+    }
+
+    /**
+     * Get project type by ID
+     * @param id Project type ID
+     * @returns Project type info or null if not found
+     */
+    async getProjectTypeById(id: number): Promise<ProjectTypeInfo | null> {
+        await this.ensureInitialized();
+        return this.projectTypes.get(id) || null;
+    }
+
+    /**
+     * Get the default project type
+     * @returns Default project type or null if none is set
+     */
+    async getDefaultProjectType(): Promise<ProjectTypeInfo | null> {
+        await this.ensureInitialized();
+        return this.defaultProjectType;
+    }
+
+    /**
+     * Get all phases for a project type
+     * @param projectTypeId Project type ID
+     * @returns Array of phase IDs
+     */
+    async getProjectTypePhases(projectTypeId: number): Promise<number[]> {
+        await this.ensureInitialized();
+        return this.projectTypePhases.get(projectTypeId) || [];
     }
 }

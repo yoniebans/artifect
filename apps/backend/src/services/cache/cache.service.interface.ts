@@ -1,6 +1,13 @@
+// src/services/cache/cache.service.interface.ts
+
 export interface ArtifactTypeInfo {
     typeId: number;
     slug: string;
+}
+
+export interface ProjectTypeInfo {
+    id: number;
+    name: string;
 }
 
 export interface ArtifactFormat {
@@ -23,4 +30,11 @@ export interface CacheServiceInterface {
     getArtifactStateIdByName(name: string): Promise<number | null>;
 
     getStateTransitionId(fromState: string, toState: string): Promise<number | null>;
+
+    // Simplified project type methods
+    getProjectTypeById(id: number): Promise<ProjectTypeInfo | null>;
+
+    getDefaultProjectType(): Promise<ProjectTypeInfo | null>;
+
+    getProjectTypePhases(projectTypeId: number): Promise<number[]>;
 }

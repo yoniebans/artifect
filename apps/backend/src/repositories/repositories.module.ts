@@ -7,6 +7,7 @@ import { ArtifactRepository } from './artifact.repository';
 import { StateRepository } from './state.repository';
 import { ReasoningRepository } from './reasoning.repository';
 import { UserRepository } from './user.repository';
+import { ProjectTypeRepository } from './project-type.repository';
 import { CacheModule } from '../services/cache/cache.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { CacheModule } from '../services/cache/cache.module';
         StateRepository,
         ReasoningRepository,
         UserRepository,
+        ProjectTypeRepository,
     ],
     exports: [
         ProjectRepository,
@@ -25,6 +27,7 @@ import { CacheModule } from '../services/cache/cache.module';
         StateRepository,
         ReasoningRepository,
         UserRepository,
+        ProjectTypeRepository,
     ]
 })
 export class RepositoriesModule { }

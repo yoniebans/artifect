@@ -3,20 +3,45 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Project, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import { ProjectRepositoryInterface } from './interfaces/project.repository.interface';
+import { ProjectRepositoryInterface, ProjectCreateDTO, ProjectUpdateDTO } from './interfaces/project.repository.interface';
+import { CacheService } from '../services/cache/cache.service';
+import { ProjectTypeRepository } from './project-type.repository';
 
 @Injectable()
 export class ProjectRepository implements ProjectRepositoryInterface {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private cacheService: CacheService,
+        private projectTypeRepository: ProjectTypeRepository
+    ) { }
 
     /**
      * Create a new project
-     * @param data Project data with user ID
+     * @param data Project data with user ID and optional project type ID
      * @returns Created project
      */
-    async create(data: { name: string, userId: number }): Promise<Project> {
+    async create(data: ProjectCreateDTO): Promise<Project> {
+        let projectTypeId = data.projectTypeId;
+
+        // If no project type ID is provided, use the default project type
+        if (!projectTypeId) {
+            try {
+                const defaultProjectType = await this.projectTypeRepository.getDefaultProjectType();
+                projectTypeId = defaultProjectType.id;
+            } catch (error) {
+                throw new Error(`Failed to get default project type: ${error.message}`);
+            }
+        }
+
         return this.prisma.project.create({
-            data
+            data: {
+                name: data.name,
+                userId: data.userId,
+                projectTypeId: projectTypeId
+            },
+            include: {
+                projectType: true
+            }
         });
     }
 
@@ -27,7 +52,10 @@ export class ProjectRepository implements ProjectRepositoryInterface {
      */
     async findById(id: number): Promise<Project | null> {
         return this.prisma.project.findUnique({
-            where: { id }
+            where: { id },
+            include: {
+                projectType: true
+            }
         });
     }
 
@@ -42,6 +70,9 @@ export class ProjectRepository implements ProjectRepositoryInterface {
             where: {
                 id,
                 userId
+            },
+            include: {
+                projectType: true
             }
         });
     }
@@ -51,7 +82,11 @@ export class ProjectRepository implements ProjectRepositoryInterface {
      * @returns Array of projects
      */
     async findAll(): Promise<Project[]> {
-        return this.prisma.project.findMany();
+        return this.prisma.project.findMany({
+            include: {
+                projectType: true
+            }
+        });
     }
 
     /**
@@ -61,7 +96,42 @@ export class ProjectRepository implements ProjectRepositoryInterface {
      */
     async findByUserId(userId: number): Promise<Project[]> {
         return this.prisma.project.findMany({
-            where: { userId }
+            where: { userId },
+            include: {
+                projectType: true
+            }
+        });
+    }
+
+    /**
+     * Find projects by project type
+     * @param projectTypeId Project type ID
+     * @returns Array of projects
+     */
+    async findByProjectType(projectTypeId: number): Promise<Project[]> {
+        return this.prisma.project.findMany({
+            where: { projectTypeId },
+            include: {
+                projectType: true
+            }
+        });
+    }
+
+    /**
+     * Find projects by user ID and project type
+     * @param userId User ID
+     * @param projectTypeId Project type ID
+     * @returns Array of projects
+     */
+    async findByUserIdAndProjectType(userId: number, projectTypeId: number): Promise<Project[]> {
+        return this.prisma.project.findMany({
+            where: {
+                userId,
+                projectTypeId
+            },
+            include: {
+                projectType: true
+            }
         });
     }
 
@@ -72,7 +142,7 @@ export class ProjectRepository implements ProjectRepositoryInterface {
      * @param userId Optional user ID for authorization
      * @returns Updated project or null if not found
      */
-    async update(id: number, data: { name: string }, userId?: number): Promise<Project | null> {
+    async update(id: number, data: ProjectUpdateDTO, userId?: number): Promise<Project | null> {
         try {
             // If userId is provided, verify ownership
             if (userId !== undefined) {
@@ -86,7 +156,10 @@ export class ProjectRepository implements ProjectRepositoryInterface {
 
             return await this.prisma.project.update({
                 where: { id },
-                data
+                data,
+                include: {
+                    projectType: true
+                }
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -133,7 +206,7 @@ export class ProjectRepository implements ProjectRepositoryInterface {
     }
 
     /**
-     * Get project metadata including the current phase
+     * Get project metadata including the current phase and project type
      * @param projectId Project ID
      * @param userId Optional user ID for authorization
      * @returns Project metadata or null if not found
@@ -141,6 +214,8 @@ export class ProjectRepository implements ProjectRepositoryInterface {
     async getProjectMetadata(projectId: number, userId?: number): Promise<{
         id: number;
         name: string;
+        projectTypeId: number | null;
+        projectTypeName: string | null;
         currentPhaseId: number | null;
         currentPhaseName: string | null;
         lastUpdate: Date | null;
@@ -155,6 +230,7 @@ export class ProjectRepository implements ProjectRepositoryInterface {
         const project = await this.prisma.project.findFirst({
             where: projectQuery,
             include: {
+                projectType: true,
                 artifacts: {
                     orderBy: {
                         updatedAt: 'desc'
@@ -178,6 +254,8 @@ export class ProjectRepository implements ProjectRepositoryInterface {
         return {
             id: project.id,
             name: project.name,
+            projectTypeId: project.projectTypeId,
+            projectTypeName: project.projectType?.name || null,
             currentPhaseId: latestArtifact?.artifactType?.lifecyclePhase?.id || null,
             currentPhaseName: latestArtifact?.artifactType?.lifecyclePhase?.name || null,
             lastUpdate: latestArtifact?.updatedAt || null
@@ -210,6 +288,12 @@ export class ProjectRepository implements ProjectRepositoryInterface {
 
         if (!project) {
             return [];
+        }
+
+        // Verify this phase is valid for the project's type
+        const projectTypePhases = await this.cacheService.getProjectTypePhases(project.projectTypeId);
+        if (!projectTypePhases.includes(phaseId)) {
+            return []; // Phase not valid for this project type
         }
 
         const artifacts = await this.prisma.artifact.findMany({

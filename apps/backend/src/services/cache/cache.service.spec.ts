@@ -25,8 +25,36 @@ describe('CacheService', () => {
     ];
 
     const mockLifecyclePhases = [
-        { id: 1, name: 'Requirements', order: 1 },
-        { id: 2, name: 'Design', order: 2 }
+        { id: 1, name: 'Requirements', order: 1, projectTypeId: 1 },
+        { id: 2, name: 'Design', order: 2, projectTypeId: 1 },
+        { id: 3, name: 'Research', order: 1, projectTypeId: 2 }
+    ];
+
+    // New mock data for project types
+    const mockProjectTypes = [
+        {
+            id: 1,
+            name: 'Software Development',
+            description: 'Software development project',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lifecyclePhases: [
+                { id: 1, name: 'Requirements', order: 1, projectTypeId: 1 },
+                { id: 2, name: 'Design', order: 2, projectTypeId: 1 }
+            ]
+        },
+        {
+            id: 2,
+            name: 'Product Design',
+            description: 'Product design project',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lifecyclePhases: [
+                { id: 3, name: 'Research', order: 1, projectTypeId: 2 }
+            ]
+        }
     ];
 
     beforeEach(async () => {
@@ -47,6 +75,9 @@ describe('CacheService', () => {
                         },
                         lifecyclePhase: {
                             findMany: jest.fn().mockResolvedValue(mockLifecyclePhases)
+                        },
+                        projectType: {
+                            findMany: jest.fn().mockResolvedValue(mockProjectTypes)
                         }
                     }
                 }
@@ -72,6 +103,7 @@ describe('CacheService', () => {
             expect(prismaService.artifactState.findMany).toHaveBeenCalled();
             expect(prismaService.stateTransition.findMany).toHaveBeenCalled();
             expect(prismaService.lifecyclePhase.findMany).toHaveBeenCalled();
+            expect(prismaService.projectType.findMany).toHaveBeenCalled();
             expect((service as any).initialized).toBe(true);
         });
 
@@ -178,6 +210,61 @@ describe('CacheService', () => {
             await service.initialize();
             const transitionId = await service.getStateTransitionId('Unknown', 'In Progress');
             expect(transitionId).toBeNull();
+        });
+    });
+
+    // New tests for project type methods
+    describe('getProjectTypeById', () => {
+        it('should return project type info by ID', async () => {
+            await service.initialize();
+            const projectTypeInfo = await service.getProjectTypeById(1);
+            expect(projectTypeInfo).toEqual({
+                id: 1,
+                name: 'Software Development'
+            });
+        });
+
+        it('should return null for unknown project type ID', async () => {
+            await service.initialize();
+            const projectTypeInfo = await service.getProjectTypeById(999);
+            expect(projectTypeInfo).toBeNull();
+        });
+    });
+
+    describe('getDefaultProjectType', () => {
+        it('should return the first project type as default', async () => {
+            await service.initialize();
+            const defaultType = await service.getDefaultProjectType();
+            expect(defaultType).toEqual({
+                id: 1,
+                name: 'Software Development'
+            });
+        });
+
+        it('should return null when no project types exist', async () => {
+            // Override for this test only
+            jest.spyOn(prismaService.projectType, 'findMany').mockResolvedValueOnce([]);
+
+            // Re-initialize with empty array
+            (service as any).initialized = false;
+            await service.initialize();
+
+            const defaultType = await service.getDefaultProjectType();
+            expect(defaultType).toBeNull();
+        });
+    });
+
+    describe('getProjectTypePhases', () => {
+        it('should return phases for a project type', async () => {
+            await service.initialize();
+            const phases = await service.getProjectTypePhases(1);
+            expect(phases).toEqual([1, 2]);
+        });
+
+        it('should return empty array for unknown project type', async () => {
+            await service.initialize();
+            const phases = await service.getProjectTypePhases(999);
+            expect(phases).toEqual([]);
         });
     });
 });
