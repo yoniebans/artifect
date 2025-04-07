@@ -22,6 +22,7 @@ async function resetDatabase() {
       prisma.artifactState.deleteMany({}),
       prisma.lifecyclePhase.deleteMany({}),
       prisma.project.deleteMany({}),
+      prisma.projectType.deleteMany({}), // Add this line
       prisma.user.deleteMany({})
     ]);
 

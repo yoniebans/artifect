@@ -25,32 +25,53 @@ model User {
   projects    Project[]  
 }
 
-// Project entity
-model Project {
-  id        Int       @id @default(autoincrement())
-  name      String
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  userId    Int      // Add this field to link projects to users
+// Project type (Software Engineering, Product Design, etc.)
+model ProjectType {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   
   // Relationships
-  user      User       @relation(fields: [userId], references: [id])
-  artifacts Artifact[]
+  projects        Project[]
+  lifecyclePhases LifecyclePhase[]
+
+  @@map("project_types")
+}
+
+model Project {
+  id            Int       @id @default(autoincrement())
+  name          String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime? @updatedAt @map("updated_at")
+  userId        Int      
+  projectTypeId Int       @map("project_type_id") // Required field (no ? mark)
+  
+  // Relationships
+  user        User        @relation(fields: [userId], references: [id])
+  projectType ProjectType @relation(fields: [projectTypeId], references: [id])
+  artifacts   Artifact[]
 
   @@map("projects")
   @@index([userId])
+  @@index([projectTypeId])
 }
 
-// Lifecycle phase (Requirements, Design, etc.)
 model LifecyclePhase {
-  id    Int    @id @default(autoincrement())
-  name  String
-  order Int
+  id            Int    @id @default(autoincrement())
+  name          String
+  order         Int
+  projectTypeId Int    @map("project_type_id") // Required field (no ? mark)
   
   // Relationships
+  projectType   ProjectType @relation(fields: [projectTypeId], references: [id])
   artifactTypes ArtifactType[]
 
   @@map("lifecycle_phases")
+  @@index([projectTypeId])
+  @@unique([name, projectTypeId]) // Same phase name can exist in different project types
 }
 
 // Artifact type (Vision Document, Functional Requirements, etc.)

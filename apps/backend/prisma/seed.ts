@@ -1,15 +1,41 @@
-import { PrismaClient, LifecyclePhase, ArtifactState, ArtifactType } from '@prisma/client';
+import { PrismaClient, LifecyclePhase, ArtifactState, ArtifactType, ProjectType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function seedLifecyclePhases(): Promise<LifecyclePhase[]> {
-  const phases = [
-    { name: 'Requirements', order: 1 },
-    { name: 'Design', order: 2 },
+async function seedProjectTypes(): Promise<ProjectType[]> {
+  const projectTypes = [
+    {
+      name: 'Software Engineering',
+      description: 'Traditional software engineering lifecycle with Requirements and Design phases',
+      isActive: true
+    }
   ];
 
-  // First, clear existing phases to avoid conflicts
-  await prisma.lifecyclePhase.deleteMany({});
+  // Create project types
+  const createdProjectTypes: ProjectType[] = [];
+  for (const projectType of projectTypes) {
+    const createdProjectType = await prisma.projectType.create({
+      data: projectType
+    });
+    createdProjectTypes.push(createdProjectType);
+  }
+
+  console.log('Project types seeded');
+  return createdProjectTypes;
+}
+
+async function seedLifecyclePhases(projectTypes: ProjectType[]): Promise<LifecyclePhase[]> {
+  // Get the Software Engineering project type
+  const softwareEngineering = projectTypes.find(pt => pt.name === 'Software Engineering');
+
+  if (!softwareEngineering) {
+    throw new Error('Software Engineering project type not found');
+  }
+
+  const phases = [
+    { name: 'Requirements', order: 1, projectTypeId: softwareEngineering.id },
+    { name: 'Design', order: 2, projectTypeId: softwareEngineering.id },
+  ];
 
   // Create phases
   const createdPhases: LifecyclePhase[] = [];
@@ -178,9 +204,12 @@ async function main(): Promise<void> {
     await prisma.artifactState.deleteMany({});
     await prisma.lifecyclePhase.deleteMany({});
     await prisma.project.deleteMany({});
+    await prisma.projectType.deleteMany({}); // Add this line
+    await prisma.user.deleteMany({});
 
     // Run seeding functions in the correct order
-    const phases = await seedLifecyclePhases();
+    const projectTypes = await seedProjectTypes();
+    const phases = await seedLifecyclePhases(projectTypes);
     const states = await seedArtifactStates();
     await seedStateTransitions(states);
     const types = await seedArtifactTypes(phases);
