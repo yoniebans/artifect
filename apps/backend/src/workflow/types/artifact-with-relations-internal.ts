@@ -1,4 +1,4 @@
-import { Artifact, ArtifactVersion } from '@prisma/client';
+import { Artifact, ArtifactVersion, ProjectType } from '@prisma/client';
 
 /**
  * Internal extended Artifact type that includes relations with Prisma naming conventions
@@ -7,6 +7,8 @@ export interface ArtifactWithRelationsInternal extends Artifact {
     project?: {
         id: number;
         name: string;
+        projectTypeId: number;
+        projectType?: ProjectType;
         [key: string]: any;
     };
     artifact_type?: {

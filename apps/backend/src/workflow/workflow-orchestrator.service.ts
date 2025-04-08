@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Artifact } from '@prisma/client';
 import { AIAssistantService } from '../ai/ai-assistant.service';
@@ -6,6 +6,7 @@ import { AIMessage } from '../ai/interfaces/ai-provider.interface';
 import { ProjectRepository } from '../repositories/project.repository';
 import { ArtifactRepository } from '../repositories/artifact.repository';
 import { ReasoningRepository } from '../repositories/reasoning.repository';
+import { ProjectTypeRepository } from '../repositories/project-type.repository';
 import { TemplateManagerService } from '../templates/template-manager.service';
 import { ContextManagerService } from '../context/context-manager.service';
 import {
@@ -34,6 +35,7 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     private contextManager: ContextManagerService,
     private aiAssistant: AIAssistantService,
     private configService: ConfigService,
+    private projectTypeRepository: ProjectTypeRepository,
   ) { }
 
   /**
@@ -41,19 +43,44 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
    * 
    * @param projectName Name of the project
    * @param userId ID of the user creating the project
+   * @param projectTypeId Optional ID of the project type
    * @returns Project metadata
    */
-  async createProject(projectName: string, userId: number): Promise<ProjectMetadata> {
+  async createProject(projectName: string, userId: number, projectTypeId?: number): Promise<ProjectMetadata> {
+    // If no project type ID provided, get the default project type
+    if (!projectTypeId) {
+      try {
+        const defaultProjectType = await this.projectTypeRepository.getDefaultProjectType();
+        projectTypeId = defaultProjectType.id;
+      } catch (error) {
+        this.logger.error(`Failed to get default project type: ${error.message}`);
+        throw new BadRequestException('Could not determine project type');
+      }
+    } else {
+      // Verify the provided project type exists
+      const projectType = await this.projectTypeRepository.findById(projectTypeId);
+      if (!projectType) {
+        throw new NotFoundException(`Project type with id ${projectTypeId} not found`);
+      }
+    }
+
+    // Create the project with the specified or default project type
     const newProject = await this.projectRepository.create({
       name: projectName,
-      userId: userId
+      userId: userId,
+      projectTypeId: projectTypeId
     });
+
+    // Get the project type for the response
+    const projectType = await this.projectTypeRepository.findById(projectTypeId);
 
     return {
       project_id: String(newProject.id),
       name: newProject.name,
       created_at: newProject.createdAt,
       updated_at: newProject.updatedAt,
+      project_type_id: String(projectTypeId),
+      project_type_name: projectType?.name || 'Unknown',
     };
   }
 
@@ -65,12 +92,21 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
   async listProjects(): Promise<ProjectMetadata[]> {
     const projects = await this.projectRepository.findAll();
 
-    return projects.map(project => ({
-      project_id: String(project.id),
-      name: project.name,
-      created_at: project.createdAt,
-      updated_at: project.updatedAt,
+    // Build project metadata with project type information
+    const projectsWithTypes = await Promise.all(projects.map(async (project) => {
+      const projectType = await this.projectTypeRepository.findById(project.projectTypeId);
+
+      return {
+        project_id: String(project.id),
+        name: project.name,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+        project_type_id: String(project.projectTypeId),
+        project_type_name: projectType?.name || 'Unknown',
+      };
     }));
+
+    return projectsWithTypes;
   }
 
   /**
@@ -82,12 +118,21 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
   async listProjectsByUser(userId: number): Promise<ProjectMetadata[]> {
     const projects = await this.projectRepository.findByUserId(userId);
 
-    return projects.map(project => ({
-      project_id: String(project.id),
-      name: project.name,
-      created_at: project.createdAt,
-      updated_at: project.updatedAt,
+    // Build project metadata with project type information
+    const projectsWithTypes = await Promise.all(projects.map(async (project) => {
+      const projectType = await this.projectTypeRepository.findById(project.projectTypeId);
+
+      return {
+        project_id: String(project.id),
+        name: project.name,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+        project_type_id: String(project.projectTypeId),
+        project_type_name: projectType?.name || 'Unknown',
+      };
     }));
+
+    return projectsWithTypes;
   }
 
   /**
@@ -109,7 +154,14 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
-    const phases = ['Requirements', 'Design'];
+    // Get the project type with its lifecycle phases
+    const projectType = await this.projectTypeRepository.findById(project.projectTypeId);
+    if (!projectType) {
+      throw new NotFoundException(`Project type for project ${projectId} not found`);
+    }
+
+    // Get the phases from the project type
+    const phases = projectType.lifecyclePhases.map((phase: any) => phase.name);
     const projectArtifacts: { [phase: string]: ArtifactItem[] } = {};
 
     // Get "To Do" state once for reuse
@@ -192,6 +244,8 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
       name: project.name,
       created_at: project.createdAt,
       updated_at: project.updatedAt,
+      project_type_id: String(project.projectTypeId),
+      project_type_name: projectType.name,
       artifacts: projectArtifacts,
     };
   }
@@ -252,12 +306,21 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     // Load project
     const project = await this.projectRepository.findById(artifact.projectId);
 
+    // Load project type if project exists
+    let projectType = null;
+    if (project) {
+      projectType = await this.projectTypeRepository.findById(project.projectTypeId);
+    }
+
     // Create an ArtifactWithRelationsInternal object with our internal schema
     return {
       ...artifact,
       artifact_type: artifactType,
       state,
-      project
+      project: project ? {
+        ...project,
+        projectType: projectType,
+      } : null,
     } as ArtifactWithRelationsInternal;
   }
 
@@ -272,7 +335,11 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     return {
       ...artifact,
       // Keep the properties the context manager expects
-      project: artifact.project,
+      project: artifact.project ? {
+        ...artifact.project,
+        project_type_id: artifact.project.projectTypeId,
+        project_type_name: artifact.project.projectType?.name || 'Unknown',
+      } : null,
       currentVersion: artifact.currentVersion,
     } as ArtifactWithRelations;
   }
@@ -334,6 +401,8 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
           state_name: t.name,
         })),
         dependent_type_id: dependentTypeId,
+        project_type_id: artifact.project?.projectTypeId ? String(artifact.project.projectTypeId) : undefined,
+        project_type_name: artifact.project?.projectType?.name,
       },
       chat_completion: {
         messages,
@@ -370,9 +439,27 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
 
+    // Get the project type
+    const projectType = await this.projectTypeRepository.findById(project.projectTypeId);
+    if (!projectType) {
+      throw new NotFoundException(`Project type for project ${projectId} not found`);
+    }
+
+    // Verify the artifact type exists and belongs to this project type
     const artifactType = await this.artifactRepository.getArtifactTypeByName(artifactTypeName);
     if (!artifactType) {
       throw new Error(`Invalid artifact type: ${artifactTypeName}`);
+    }
+
+    // Verify this artifact type belongs to a phase in this project type
+    const phaseIds = projectType.lifecyclePhases.map((phase: any) => phase.id);
+    const isValidForProjectType = await this.artifactRepository.getArtifactType(artifactType.id)
+      .then(type => type && phaseIds.includes(type.lifecyclePhaseId));
+
+    if (!isValidForProjectType) {
+      throw new BadRequestException(
+        `Artifact type '${artifactTypeName}' is not valid for project type '${projectType.name}'`
+      );
     }
 
     // Load the full artifact type with lifecycle phase and dependencies
@@ -479,6 +566,8 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
           state_name: t.name,
         })),
         dependent_type_id: dependentTypeId,
+        project_type_id: updatedArtifact.project?.projectTypeId ? String(updatedArtifact.project.projectTypeId) : undefined,
+        project_type_name: updatedArtifact.project?.projectType?.name,
       },
       chat_completion: {
         messages,
@@ -610,6 +699,8 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
           state_name: t.name,
         })),
         dependent_type_id: dependentTypeId,
+        project_type_id: updatedArtifact.project?.projectTypeId ? String(updatedArtifact.project.projectTypeId) : undefined,
+        project_type_name: updatedArtifact.project?.projectType?.name,
       },
       chat_completion: {
         messages,
@@ -823,6 +914,8 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
           state_name: t.name,
         })),
         dependent_type_id: dependentTypeId,
+        project_type_id: fullUpdatedArtifact.project?.projectTypeId ? String(fullUpdatedArtifact.project.projectTypeId) : undefined,
+        project_type_name: fullUpdatedArtifact.project?.projectType?.name,
       },
       chat_completion: {
         messages: [],

@@ -11,6 +11,8 @@ export interface ProjectMetadata {
     name: string;
     created_at: Date;
     updated_at: Date | null;
+    project_type_id?: string;
+    project_type_name?: string;
 }
 
 /**
@@ -53,6 +55,8 @@ export interface ArtifactDetails {
         state_name: string;
         available_transitions: StateTransition[];
         dependent_type_id: string | null;
+        project_type_id?: string;
+        project_type_name?: string;
     };
     chat_completion: {
         messages: AIMessage[];
@@ -76,9 +80,10 @@ export interface WorkflowOrchestratorInterface {
      * 
      * @param projectName Name of the project
      * @param userId ID of the user creating the project
+     * @param projectTypeId Optional ID of the project type (default will be used if not provided)
      * @returns Project metadata
      */
-    createProject(projectName: string, userId: number): Promise<ProjectMetadata>;
+    createProject(projectName: string, userId: number, projectTypeId?: number): Promise<ProjectMetadata>;
 
     /**
      * List all projects
