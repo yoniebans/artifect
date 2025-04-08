@@ -1,3 +1,4 @@
+// apps/backend/src/templates/interfaces/template-manager.interface.ts
 export interface ArtifactFormat {
     startTag: string;
     endTag: string;
@@ -44,8 +45,9 @@ export interface TemplateManagerInterface {
 
     /**
      * Reads the content of a system prompt file
-     * @param promptName The name of the prompt file without extension
+     * @param projectTypeSlug The slugified project type name
+     * @param templateName The name of the template without extension
      * @returns The content of the prompt file
      */
-    readSystemPrompt(promptName: string): Promise<string>;
+    readSystemPrompt(projectTypeSlug: string, templateName: string): Promise<string>;
 }

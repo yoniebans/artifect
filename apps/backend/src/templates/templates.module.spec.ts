@@ -1,5 +1,4 @@
-// src/templates/templates.module.spec.ts
-
+// apps/backend/src/templates/templates.module.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import { CacheService } from '../services/cache/cache.service';
@@ -19,6 +18,7 @@ describe('TemplatesModule', () => {
                 endTag: '[/TEST]',
                 syntax: 'markdown'
             }),
+            getProjectTypeById: jest.fn().mockResolvedValue({ id: 1, name: 'Software Engineering' }),
             initialize: jest.fn(),
         };
 

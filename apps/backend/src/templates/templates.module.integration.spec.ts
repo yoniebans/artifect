@@ -1,36 +1,22 @@
-// src/templates/templates.module.integration.spec.ts
+// apps/backend/src/templates/templates.module.integration.spec.ts
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import { CacheService } from '../services/cache/cache.service';
 import { TemplatesModule } from './templates.module';
 import { TemplateManagerService } from './template-manager.service';
-import * as fs from 'fs';
 import * as path from 'path';
 import configuration from '../config/configuration';
 
 /**
- * This test creates an actual templating system with mock files.
- * It creates temporary directories and files for templates and system prompts.
+ * This is a real integration test that interacts with the actual file system
+ * to test that template loading works correctly with the new folder structure.
  */
 describe('TemplatesModule Integration', () => {
   let moduleRef: TestingModule;
   let templateManager: TemplateManagerService;
   let mockCacheService: any;
 
-  // Paths for test template files
-  const testDir = path.join(__dirname, 'test-templates');
-  const artifactsDir = path.join(testDir, 'artifacts');
-  const systemPromptsDir = path.join(testDir, 'system-prompts');
-
-  // Mock files content for test
-  const mockFileContents: Record<string, string> = {
-    'test_new.hbs': 'Test template for {{artifact.artifact_type_name}} in project {{project.name}}',
-    'test_update.hbs': 'Update for {{artifact.name}} with content:\n```\n{{artifact.content}}\n```\n\nUser input: {{user_message}}',
-    'test_agent.hbs': 'You are a test agent for {{project.name}} focused on {{artifact.artifact_type_name}}.\n{{#if vision}}Vision: {{vision}}{{/if}}'
-  };
-
-  // Mock the cache service
   beforeEach(async () => {
     mockCacheService = {
       getArtifactTypeInfo: jest.fn().mockResolvedValue({ typeId: 1, slug: 'test_type' }),
@@ -38,6 +24,10 @@ describe('TemplatesModule Integration', () => {
         startTag: '[TEST]',
         endTag: '[/TEST]',
         syntax: 'markdown'
+      }),
+      getProjectTypeById: jest.fn().mockImplementation((id) => {
+        if (id === 1) return Promise.resolve({ id: 1, name: 'Software Engineering' });
+        return Promise.resolve(null);
       }),
       initialize: jest.fn().mockResolvedValue(undefined),
     };
@@ -56,107 +46,146 @@ describe('TemplatesModule Integration', () => {
 
     templateManager = moduleRef.get<TemplateManagerService>(TemplateManagerService);
 
-    // Mock file system methods
-    jest.spyOn(fs.promises, 'readdir').mockImplementation((dirPath: string) => {
-      if (dirPath.includes('artifacts')) {
-        return Promise.resolve(['test_new.hbs', 'test_update.hbs'] as any);
-      } else if (dirPath.includes('system-prompts')) {
-        return Promise.resolve(['test_agent.hbs'] as any);
-      }
-      return Promise.resolve([] as any);
-    });
-
-    jest.spyOn(fs.promises, 'readFile').mockImplementation((filePath: string) => {
-      const fileName = path.basename(filePath as string);
-      if (mockFileContents[fileName]) {
-        return Promise.resolve(mockFileContents[fileName] as any);
-      }
-      return Promise.resolve('Default mock content' as any);
-    });
-
-    // Override the template directories to use our test directories
-    Object.defineProperty(templateManager, 'templatesDir', { value: artifactsDir });
-    Object.defineProperty(templateManager, 'systemPromptsDir', { value: systemPromptsDir });
-
-    // Manually initialize the service
+    // Initialize the template manager to load real templates
     await templateManager.onModuleInit();
   });
 
   afterEach(async () => {
     await moduleRef.close();
-    jest.restoreAllMocks();
   });
 
   it('should provide TemplateManagerService', () => {
     expect(templateManager).toBeDefined();
   });
 
-  it('should render templates with context', async () => {
+  it('should render artifact templates from the filesystem', async () => {
     const context = {
       project: { name: 'Test Project' },
       artifact: { artifact_type_name: 'Vision Document' }
     };
 
-    // Mock the specific calls for this test
-    jest.spyOn(templateManager, 'renderTemplate').mockResolvedValueOnce(
-      'Test template for Vision Document in project Test Project'
-    );
+    const result = await templateManager.renderTemplate('artifact_new', context);
 
-    const result = await templateManager.renderTemplate('test_new', context);
-
-    expect(result).toBe('Test template for Vision Document in project Test Project');
+    // Verify it includes the expected text from the real template
+    expect(result).toContain('Kick off dialogue regarding a new Vision Document for the project');
   });
 
-  it('should render system prompts with context', async () => {
+  it('should render the requirements system prompt from software-engineering directory', async () => {
     const context = {
-      project: { name: 'Test Project' },
+      project: {
+        name: 'Test Project',
+        project_type_id: 1
+      },
       artifact: {
         artifact_type_name: 'Vision Document',
-        artifact_phase: 'test'
-      },
-      vision: 'This is a test vision'
+        artifact_phase: 'requirements'
+      }
     };
-
-    // Mock the template access methods for this test
-    jest.spyOn(templateManager, 'readSystemPrompt').mockResolvedValueOnce(
-      'You are a test agent for {{project.name}} focused on {{artifact.artifact_type_name}}.\n{{#if vision}}Vision: {{vision}}{{/if}}'
-    );
 
     const result = await templateManager.getSystemPrompt(context);
 
-    expect(result).toContain('You are a test agent for Test Project');
-    expect(result).toContain('Vision: This is a test vision');
+    // Verify it includes text from the real requirements-agent.hbs
+    expect(result).toContain('AI model specializing as a business analyst');
   });
 
-  it('should get the appropriate user message template name', () => {
-    expect(templateManager.getUserMessageTemplate(false)).toBe('artifact_new');
-    expect(templateManager.getUserMessageTemplate(true)).toBe('artifact_update');
-  });
-
-  it('should generate complete artifact input', async () => {
+  it('should render the design system prompt from software-engineering directory', async () => {
     const context = {
-      project: { name: 'Test Project' },
+      project: {
+        name: 'Test Project',
+        project_type_id: 1
+      },
+      artifact: {
+        artifact_type_name: 'C4 Context',
+        artifact_phase: 'design'
+      }
+    };
+
+    const result = await templateManager.getSystemPrompt(context);
+
+    // Verify it includes text from the real design-agent.hbs
+    expect(result).toContain('AI model specializing as a software architect');
+  });
+
+  it('should render the data system prompt from software-engineering directory', async () => {
+    const context = {
+      project: {
+        name: 'Test Project',
+        project_type_id: 1
+      },
+      artifact: {
+        artifact_type_name: 'Data Model',
+        artifact_phase: 'data'
+      }
+    };
+
+    const result = await templateManager.getSystemPrompt(context);
+
+    // Verify it includes text from the real data-agent.hbs
+    expect(result).toContain('AI model specialized in Data Architecture');
+  });
+
+  it('should throw error when template for phase does not exist', async () => {
+    const context = {
+      project: {
+        name: 'Test Project',
+        project_type_id: 1
+      },
+      artifact: {
+        artifact_type_name: 'Unknown Document',
+        artifact_phase: 'nonexistent-phase'
+      }
+    };
+
+    await expect(templateManager.getSystemPrompt(context)).rejects.toThrow(
+      "Failed to load or render system prompt template: System prompt file not found: software-engineering/nonexistent-phase-agent.hbs"
+    );
+  });
+
+  it('should throw error when project type does not exist', async () => {
+    const context = {
+      project: {
+        name: 'Test Project',
+        project_type_id: 999 // Nonexistent project type
+      },
       artifact: {
         artifact_type_name: 'Vision Document',
-        artifact_phase: 'test'
+        artifact_phase: 'requirements'
+      }
+    };
+
+    // Already mocked to return null for non-1 IDs
+    await expect(templateManager.getSystemPrompt(context)).rejects.toThrow(
+      'Project type not found: 999'
+    );
+  });
+
+  it('should generate complete artifact input from filesystem templates', async () => {
+    const context = {
+      project: {
+        name: 'Test Project',
+        project_type_id: 1
+      },
+      artifact: {
+        artifact_type_name: 'Vision Document',
+        artifact_phase: 'requirements'
       },
       is_update: false
     };
 
-    // Mock some method calls for consistency
-    jest.spyOn(templateManager, 'getSystemPrompt').mockResolvedValue('Test system prompt');
-    jest.spyOn(templateManager, 'renderTemplate').mockResolvedValue('Test user message');
-
     const result = await templateManager.getArtifactInput(context);
 
-    expect(result).toEqual({
-      systemPrompt: 'Test system prompt',
-      template: 'Test user message',
+    expect(result).toMatchObject({
       artifactFormat: {
         startTag: '[TEST]',
         endTag: '[/TEST]',
         syntax: 'markdown'
       }
     });
+
+    // Verify systemPrompt comes from requirements-agent.hbs
+    expect(result.systemPrompt).toContain('AI model specializing as a business analyst');
+
+    // Verify template comes from artifact_new.hbs
+    expect(result.template).toContain('Kick off dialogue regarding a new Vision Document');
   });
 });

@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import * as Handlebars from 'handlebars';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { existsSync } from 'fs';
 import { CacheService } from '../services/cache/cache.service';
 import { TemplateManagerInterface, TemplateInput } from './interfaces/template-manager.interface';
 
@@ -19,7 +20,7 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
         private readonly configService: ConfigService,
         private readonly cacheService: CacheService,
     ) {
-        // Set base directories - could be configurable in the future
+        // Set base directories
         const baseDir = path.resolve(__dirname, './');
         this.templatesDir = path.join(baseDir, 'artifacts');
         this.systemPromptsDir = path.join(baseDir, 'system-prompts');
@@ -32,6 +33,13 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
         await this.loadTemplates();
         await this.loadSystemPrompts();
         this.registerHelpers();
+    }
+
+    /**
+     * Slugify a string for use in paths and cache keys
+     */
+    private slugify(text: string): string {
+        return text.toLowerCase().replace(/\s+/g, '-');
     }
 
     /**
@@ -55,17 +63,39 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
     }
 
     /**
-     * Load all system prompts from the system prompts directory
+     * Load all system prompts from project type directories
      */
     async loadSystemPrompts(): Promise<void> {
         try {
-            const files = await fs.readdir(this.systemPromptsDir);
-            for (const file of files) {
-                if (file.endsWith('.hbs')) {
-                    const promptName = path.basename(file, '.hbs');
-                    const promptPath = path.join(this.systemPromptsDir, file);
-                    const promptContent = await fs.readFile(promptPath, 'utf8');
-                    this.systemPrompts.set(promptName, promptContent);
+            // Check if the system prompts directory exists
+            if (!existsSync(this.systemPromptsDir)) {
+                await fs.mkdir(this.systemPromptsDir, { recursive: true });
+                return; // No prompts to load yet
+            }
+
+            // Get all entries in the system prompts directory
+            const entries = await fs.readdir(this.systemPromptsDir, { withFileTypes: true });
+
+            // Process project type directories
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const projectTypeDir = path.join(this.systemPromptsDir, entry.name);
+                    const projectTypeSlug = this.slugify(entry.name);
+
+                    // Read all template files in this project type directory
+                    const files = await fs.readdir(projectTypeDir);
+
+                    for (const file of files) {
+                        if (file.endsWith('.hbs')) {
+                            const templateBaseName = path.basename(file, '.hbs');
+                            const templatePath = path.join(projectTypeDir, file);
+                            const templateContent = await fs.readFile(templatePath, 'utf8');
+
+                            // Cache key format: project-type/template-name
+                            const cacheKey = `${projectTypeSlug}/${templateBaseName}`;
+                            this.systemPrompts.set(cacheKey, templateContent);
+                        }
+                    }
                 }
             }
         } catch (error) {
@@ -123,19 +153,65 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
      */
     async getSystemPrompt(context: Record<string, any>): Promise<string> {
         try {
-            const phase = context.artifact?.artifact_phase?.toLowerCase() || 'requirements';
+            const phase = context.artifact?.artifact_phase;
+            if (!phase) {
+                throw new Error('No artifact phase specified in context');
+            }
 
-            // The system prompt template is named after the phase (e.g., requirements_agent)
-            const systemPromptTemplate = `${phase}_agent`;
+            const projectTypeId = context.project?.project_type_id;
+            if (!projectTypeId) {
+                throw new Error('No project type ID specified in context');
+            }
 
-            // Get the template content and compile it
-            const systemPromptContent = await this.readSystemPrompt(systemPromptTemplate);
+            // Get project type info from cache
+            const projectType = await this.cacheService.getProjectTypeById(projectTypeId);
+            if (!projectType) {
+                throw new Error(`Project type not found: ${projectTypeId}`);
+            }
+
+            // Build template name
+            const projectTypeSlug = this.slugify(projectType.name);
+            const phaseSlug = this.slugify(phase);
+            const templateName = `${phaseSlug}-agent`;
+
+            // Get template content
+            const systemPromptContent = await this.readSystemPrompt(projectTypeSlug, templateName);
+
+            // Compile and render the template
             const template = Handlebars.compile(systemPromptContent);
-
-            // Render the system prompt template with the full context
             return template(context);
         } catch (error) {
             throw new Error(`Failed to load or render system prompt template: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Reads the content of a system prompt file from the project type directory
+     * @param projectTypeSlug The slugified project type name
+     * @param templateName The name of the template file without extension
+     * @returns The content of the template file
+     */
+    async readSystemPrompt(projectTypeSlug: string, templateName: string): Promise<string> {
+        // Check if we have this template in cache
+        const cacheKey = `${projectTypeSlug}/${templateName}`;
+        if (this.systemPrompts.has(cacheKey)) {
+            return this.systemPrompts.get(cacheKey) as string;
+        }
+
+        try {
+            // Look for the template in the project type directory
+            const templatePath = path.join(this.systemPromptsDir, projectTypeSlug, `${templateName}.hbs`);
+
+            if (existsSync(templatePath)) {
+                const templateContent = await fs.readFile(templatePath, 'utf8');
+                this.systemPrompts.set(cacheKey, templateContent);
+                return templateContent;
+            }
+
+            // No fallbacks - if template doesn't exist, throw an error
+            throw new Error(`System prompt template not found for project type '${projectTypeSlug}' and template '${templateName}'`);
+        } catch (error) {
+            throw new Error(`System prompt file not found: ${projectTypeSlug}/${templateName}.hbs`);
         }
     }
 
@@ -156,8 +232,11 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
     async getArtifactInput(context: Record<string, any>): Promise<TemplateInput> {
         // Get the artifact type slug for format lookup
         const artifactTypeName = context.artifact?.artifact_type_name;
-        const artifactTypeInfo = await this.cacheService.getArtifactTypeInfo(artifactTypeName);
+        if (!artifactTypeName) {
+            throw new Error('No artifact type name specified in context');
+        }
 
+        const artifactTypeInfo = await this.cacheService.getArtifactTypeInfo(artifactTypeName);
         if (!artifactTypeInfo) {
             throw new Error(`Artifact type not found: ${artifactTypeName}`);
         }
@@ -179,29 +258,5 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
             template: userMessage,
             artifactFormat
         };
-    }
-
-    /**
-     * Reads the content of a system prompt file
-     * @param promptName The name of the prompt file without extension
-     * @returns The content of the prompt file
-     */
-    async readSystemPrompt(promptName: string): Promise<string> {
-        // First check if we already have this prompt in memory
-        if (this.systemPrompts.has(promptName)) {
-            return this.systemPrompts.get(promptName) as string;
-        }
-
-        try {
-            const promptPath = path.join(this.systemPromptsDir, `${promptName}.hbs`);
-            const promptContent = await fs.readFile(promptPath, 'utf8');
-
-            // Store in memory for future use
-            this.systemPrompts.set(promptName, promptContent);
-
-            return promptContent;
-        } catch (error) {
-            throw new Error(`System prompt file not found: ${promptName}.hbs`);
-        }
     }
 }

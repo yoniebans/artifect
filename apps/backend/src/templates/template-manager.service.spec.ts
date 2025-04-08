@@ -1,5 +1,4 @@
-// src/templates/template-manager.service.spec.ts
-
+// apps/backend/src/templates/template-manager.service.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { CacheService } from '../services/cache/cache.service';
@@ -7,13 +6,14 @@ import { TemplateManagerService } from './template-manager.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Mock the fs.promises APIs
+// Mock the fs APIs
 jest.mock('fs', () => ({
     promises: {
         readdir: jest.fn(),
         readFile: jest.fn(),
+        mkdir: jest.fn(),
     },
-    existsSync: jest.fn().mockReturnValue(false) // Add existsSync method
+    existsSync: jest.fn(),
 }));
 
 describe('TemplateManagerService', () => {
@@ -27,6 +27,7 @@ describe('TemplateManagerService', () => {
     const mockCacheService = {
         getArtifactTypeInfo: jest.fn(),
         getArtifactFormat: jest.fn(),
+        getProjectTypeById: jest.fn(),
     };
 
     beforeEach(async () => {
@@ -49,33 +50,45 @@ describe('TemplateManagerService', () => {
         service = module.get<TemplateManagerService>(TemplateManagerService);
         cacheService = module.get<CacheService>(CacheService);
 
-        // Mock the template/system prompt directories
+        // Mock paths
         jest.spyOn(path, 'resolve').mockImplementation(() => '/mock/base/dir');
 
-        // Mock the fs.readdir to return some template files
+        // Setup default mock behavior
         (fs.promises.readdir as jest.Mock).mockImplementation((dir: string) => {
             if (dir.includes('artifacts')) {
                 return Promise.resolve(['artifact_new.hbs', 'artifact_update.hbs']);
             } else if (dir.includes('system-prompts')) {
-                return Promise.resolve(['requirements_agent.hbs', 'design_agent.hbs', 'data_agent.hbs']);
+                return Promise.resolve([{ isDirectory: () => true, name: 'software-engineering' }]);
+            } else if (dir.includes('software-engineering')) {
+                return Promise.resolve(['requirements-agent.hbs', 'design-agent.hbs', 'data-agent.hbs']);
             }
             return Promise.resolve([]);
         });
 
-        // Mock the fs.readFile to return template content
         (fs.promises.readFile as jest.Mock).mockImplementation((filePath: string) => {
             if (filePath.includes('artifact_new.hbs')) {
                 return Promise.resolve('Kick off dialogue regarding a new {{artifact.artifact_type_name}} for the project.');
             } else if (filePath.includes('artifact_update.hbs')) {
                 return Promise.resolve('# Current Content\n```\n{{artifact.content}}\n```\n\n# User Request\n{{user_message}}');
-            } else if (filePath.includes('requirements_agent.hbs')) {
+            } else if (filePath.includes('requirements-agent.hbs')) {
                 return Promise.resolve('You are an AI model specializing as a business analyst focused on requirement engineering.');
-            } else if (filePath.includes('design_agent.hbs')) {
+            } else if (filePath.includes('design-agent.hbs')) {
                 return Promise.resolve('You are an AI model specializing as a software architect.');
-            } else if (filePath.includes('data_agent.hbs')) {
+            } else if (filePath.includes('data-agent.hbs')) {
                 return Promise.resolve('You are an AI model specialized in Data Architecture.');
             }
             return Promise.resolve('');
+        });
+
+        (fs.existsSync as jest.Mock).mockImplementation((filePath: string) => {
+            if (filePath.includes('system-prompts/software-engineering/requirements-agent.hbs')) {
+                return true;
+            } else if (filePath.includes('system-prompts/software-engineering/design-agent.hbs')) {
+                return true;
+            } else if (filePath.includes('system-prompts/software-engineering/data-agent.hbs')) {
+                return true;
+            }
+            return false;
         });
 
         // Initialize the service manually since we're not calling onModuleInit
@@ -114,36 +127,83 @@ describe('TemplateManagerService', () => {
                 },
                 project: {
                     name: 'Test Project',
+                    project_type_id: 1,
                 },
             };
+
+            mockCacheService.getProjectTypeById.mockResolvedValue({
+                id: 1,
+                name: 'Software Engineering',
+            });
 
             const result = await service.getSystemPrompt(context);
 
             expect(result).toBe('You are an AI model specializing as a business analyst focused on requirement engineering.');
+            expect(mockCacheService.getProjectTypeById).toHaveBeenCalledWith(1);
         });
 
-        it('should default to requirements phase if not specified', async () => {
+        it('should throw error when artifact phase is missing', async () => {
             const context = {
+                project: {
+                    name: 'Test Project',
+                    project_type_id: 1,
+                },
+            };
+
+            await expect(service.getSystemPrompt(context)).rejects.toThrow('No artifact phase specified in context');
+        });
+
+        it('should throw error when project type ID is missing', async () => {
+            const context = {
+                artifact: {
+                    artifact_phase: 'requirements',
+                },
                 project: {
                     name: 'Test Project',
                 },
             };
 
-            const result = await service.getSystemPrompt(context);
+            await expect(service.getSystemPrompt(context)).rejects.toThrow('No project type ID specified in context');
+        });
+
+        it('should throw error when project type is not found', async () => {
+            const context = {
+                artifact: {
+                    artifact_phase: 'requirements',
+                },
+                project: {
+                    name: 'Test Project',
+                    project_type_id: 999,
+                },
+            };
+
+            mockCacheService.getProjectTypeById.mockResolvedValue(null);
+
+            await expect(service.getSystemPrompt(context)).rejects.toThrow('Project type not found: 999');
+        });
+    });
+
+    describe('readSystemPrompt', () => {
+        it('should read the content of a system prompt file', async () => {
+            const result = await service.readSystemPrompt('software-engineering', 'requirements-agent');
 
             expect(result).toBe('You are an AI model specializing as a business analyst focused on requirement engineering.');
         });
 
-        it('should throw error for invalid phase', async () => {
-            const context = {
-                artifact: {
-                    artifact_phase: 'invalid_phase',
-                },
-            };
+        it('should throw error for non-existent prompt', async () => {
+            (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
+        
+            await expect(service.readSystemPrompt('software-engineering', 'non-existent-agent')).rejects.toThrow(
+                "System prompt file not found: software-engineering/non-existent-agent.hbs"
+            );
+        });
 
-            (fs.promises.readFile as jest.Mock).mockRejectedValueOnce(new Error('File not found'));
-
-            await expect(service.getSystemPrompt(context)).rejects.toThrow('Failed to load or render system prompt template');
+        it('should throw error for non-existent project type', async () => {
+            (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
+        
+            await expect(service.readSystemPrompt('product-design', 'requirements-agent')).rejects.toThrow(
+                "System prompt file not found: product-design/requirements-agent.hbs"
+            );
         });
     });
 
@@ -170,6 +230,7 @@ describe('TemplateManagerService', () => {
                 },
                 project: {
                     name: 'Test Project',
+                    project_type_id: 1,
                 },
                 is_update: false,
             };
@@ -177,6 +238,11 @@ describe('TemplateManagerService', () => {
             mockCacheService.getArtifactTypeInfo.mockResolvedValue({
                 typeId: 1,
                 slug: 'vision',
+            });
+
+            mockCacheService.getProjectTypeById.mockResolvedValue({
+                id: 1,
+                name: 'Software Engineering',
             });
 
             mockCacheService.getArtifactFormat.mockResolvedValue({
@@ -205,30 +271,35 @@ describe('TemplateManagerService', () => {
             expect(mockCacheService.getArtifactFormat).toHaveBeenCalledWith('vision');
         });
 
+        it('should throw error when artifact type name is missing', async () => {
+            const context = {
+                artifact: {
+                    artifact_phase: 'requirements',
+                },
+                project: {
+                    name: 'Test Project',
+                    project_type_id: 1,
+                },
+            };
+
+            await expect(service.getArtifactInput(context)).rejects.toThrow('No artifact type name specified in context');
+        });
+
         it('should throw error for invalid artifact type', async () => {
             const context = {
                 artifact: {
                     artifact_type_name: 'Invalid Type',
+                    artifact_phase: 'requirements',
+                },
+                project: {
+                    name: 'Test Project',
+                    project_type_id: 1,
                 },
             };
 
             mockCacheService.getArtifactTypeInfo.mockResolvedValue(null);
 
-            await expect(service.getArtifactInput(context)).rejects.toThrow('Artifact type not found');
-        });
-    });
-
-    describe('readSystemPrompt', () => {
-        it('should read the content of a system prompt file', async () => {
-            const result = await service.readSystemPrompt('requirements_agent');
-
-            expect(result).toBe('You are an AI model specializing as a business analyst focused on requirement engineering.');
-        });
-
-        it('should throw error for non-existent prompt', async () => {
-            (fs.promises.readFile as jest.Mock).mockRejectedValueOnce(new Error('File not found'));
-
-            await expect(service.readSystemPrompt('non_existent')).rejects.toThrow('System prompt file not found');
+            await expect(service.getArtifactInput(context)).rejects.toThrow('Artifact type not found: Invalid Type');
         });
     });
 });
