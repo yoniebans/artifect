@@ -3,52 +3,24 @@ import { ContextManagerService } from './context-manager.service';
 import { ArtifactRepository } from '../repositories/artifact.repository';
 import { CacheService } from '../services/cache/cache.service';
 import { ArtifactWithRelations } from './types/artifact-with-relations';
+import { DependencyResolver } from './dependency-resolver';
 
 describe('ContextManagerService', () => {
     let service: ContextManagerService;
+    let dependencyResolver: DependencyResolver;
     let artifactRepository: ArtifactRepository;
     let cacheService: CacheService;
-
-    // Create mock artifacts with dependencies
-    const mockVision = {
-        id: 1,
-        currentVersion: { content: 'Vision content' }
-    };
-
-    const mockFR = {
-        id: 2,
-        currentVersion: { content: 'Functional requirements content' }
-    };
-
-    const mockNFR = {
-        id: 3,
-        currentVersion: { content: 'Non-functional requirements content' }
-    };
-
-    const mockUseCase = {
-        id: 4,
-        currentVersion: { content: 'Use case content' }
-    };
-
-    const mockC4Context = {
-        id: 5,
-        currentVersion: { content: 'C4 Context content' }
-    };
-
-    const mockC4Container = {
-        id: 6,
-        currentVersion: { content: 'C4 Container content' }
-    };
-
-    const mockC4Component = {
-        id: 7,
-        currentVersion: { content: 'C4 Component content' }
-    };
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ContextManagerService,
+                {
+                    provide: DependencyResolver,
+                    useValue: {
+                        resolveDependencies: jest.fn(),
+                    },
+                },
                 {
                     provide: ArtifactRepository,
                     useValue: {
@@ -65,74 +37,99 @@ describe('ContextManagerService', () => {
         }).compile();
 
         service = module.get<ContextManagerService>(ContextManagerService);
+        dependencyResolver = module.get<DependencyResolver>(DependencyResolver);
         artifactRepository = module.get<ArtifactRepository>(ArtifactRepository);
         cacheService = module.get<CacheService>(CacheService);
-
-        // Mock getArtifactTypeInfo to return type IDs
-        jest.spyOn(cacheService, 'getArtifactTypeInfo')
-            .mockImplementation((name: string) => {
-                const typeMap: Record<string, { typeId: number; slug: string } | undefined> = {
-                    'Vision Document': { typeId: 1, slug: 'vision' },
-                    'Functional Requirements': { typeId: 2, slug: 'functional_requirements' },
-                    'Non-Functional Requirements': { typeId: 3, slug: 'non_functional_requirements' },
-                    'Use Cases': { typeId: 4, slug: 'use_cases' },
-                    'C4 Context': { typeId: 5, slug: 'c4_context' },
-                    'C4 Container': { typeId: 6, slug: 'c4_container' },
-                    'C4 Component': { typeId: 7, slug: 'c4_component' },
-                };
-                return Promise.resolve(typeMap[name] || null);
-            });
     });
 
     it('should be defined', () => {
         expect(service).toBeDefined();
     });
 
-    it('should create basic context for a new artifact', async () => {
+    it('should create basic context for a new artifact with project type info', async () => {
         const mockArtifact = {
             id: 1,
+            projectId: 1,
             artifactTypeId: 1,
+            stateId: 2,
             name: 'Test Artifact',
+            createdAt: new Date(),
+            updatedAt: new Date(),
             project: {
+                id: 1,
                 name: 'Test Project',
+                projectTypeId: 1,
+                projectType: {
+                    id: 1,
+                    name: 'Software Engineering'
+                }
             },
             artifact_type: {
                 id: 1,
                 name: 'Vision Document',
                 lifecyclePhase: {
+                    id: 1,
                     name: 'Requirements',
                 },
             },
+            currentVersionId: null,
         } as ArtifactWithRelations;
+
+        // Mock the dependency resolver to return an empty map
+        jest.spyOn(dependencyResolver, 'resolveDependencies')
+            .mockResolvedValue(new Map());
 
         const context = await service.getContext(mockArtifact, false);
 
         expect(context).toBeDefined();
         expect(context.project.name).toBe('Test Project');
+        expect(context.project.project_type_id).toBe(1);
+        expect(context.project.project_type_name).toBe('Software Engineering');
         expect(context.artifact.artifact_type_name).toBe('Vision Document');
         expect(context.artifact.artifact_phase).toBe('Requirements');
         expect(context.is_update).toBe(false);
+        expect(dependencyResolver.resolveDependencies).toHaveBeenCalledWith(mockArtifact);
     });
 
     it('should include current content for an update', async () => {
         const mockArtifact = {
             id: 1,
+            projectId: 1,
             artifactTypeId: 1,
+            stateId: 2,
             name: 'Test Artifact',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            currentVersionId: 101,
             project: {
+                id: 1,
                 name: 'Test Project',
+                projectTypeId: 1,
+                projectType: {
+                    id: 1,
+                    name: 'Software Engineering'
+                }
             },
             artifact_type: {
                 id: 1,
                 name: 'Vision Document',
                 lifecyclePhase: {
+                    id: 1,
                     name: 'Requirements',
                 },
             },
             currentVersion: {
+                id: 101,
+                artifactId: 1,
+                versionNumber: 1,
+                createdAt: new Date(),
                 content: 'Current artifact content'
             }
         } as ArtifactWithRelations;
+
+        // Mock the dependency resolver to return an empty map
+        jest.spyOn(dependencyResolver, 'resolveDependencies')
+            .mockResolvedValue(new Map());
 
         const context = await service.getContext(mockArtifact, true);
 
@@ -140,31 +137,43 @@ describe('ContextManagerService', () => {
         expect(context.artifact.content).toBe('Current artifact content');
     });
 
-    it('should include vision document for functional requirements', async () => {
+    it('should include resolved dependencies in the context', async () => {
         const mockArtifact = {
-            id: 10,
-            artifactTypeId: 2, // Functional Requirements
+            id: 2,
+            projectId: 1,
+            artifactTypeId: 2,
+            stateId: 2,
+            currentVersionId: null,
             name: 'Functional Requirements',
+            createdAt: new Date(),
+            updatedAt: new Date(),
             project: {
+                id: 1, 
                 name: 'Test Project',
+                projectTypeId: 1,
+                projectType: {
+                    id: 1,
+                    name: 'Software Engineering'
+                }
             },
             artifact_type: {
                 id: 2,
                 name: 'Functional Requirements',
                 lifecyclePhase: {
+                    id: 1,
                     name: 'Requirements',
                 },
             },
         } as ArtifactWithRelations;
 
-        // Mock repository to return vision document
-        jest.spyOn(artifactRepository, 'getArtifactsByType')
-            .mockImplementation((artifact, type) => {
-                if (type === 'Vision Document') {
-                    return Promise.resolve([mockVision as any]);
-                }
-                return Promise.resolve([]);
-            });
+        // Mock dependencies
+        const mockDependencies = new Map<string, any>([
+            ['vision', 'Vision content'],
+        ]);
+
+        // Mock the dependency resolver
+        jest.spyOn(dependencyResolver, 'resolveDependencies')
+            .mockResolvedValue(mockDependencies);
 
         const context = await service.getContext(mockArtifact, false);
 
@@ -172,12 +181,51 @@ describe('ContextManagerService', () => {
         expect(context.vision).toBe('Vision content');
     });
 
-    it('should throw error if required dependency is missing', async () => {
+    it('should handle user message when provided', async () => {
         const mockArtifact = {
-            id: 10,
-            artifactTypeId: 2, // Functional Requirements
-            name: 'Functional Requirements',
+            id: 1,
+            projectId: 1,
+            artifactTypeId: 1,
+            stateId: 2,
+            currentVersionId: null,
+            name: 'Test Artifact',
+            createdAt: new Date(),
+            updatedAt: new Date(),
             project: {
+                id: 1,
+                name: 'Test Project',
+            },
+            artifact_type: {
+                id: 1,
+                name: 'Vision Document',
+                lifecyclePhase: {
+                    name: 'Requirements',
+                },
+            },
+        } as ArtifactWithRelations;
+
+        // Mock the dependency resolver to return an empty map
+        jest.spyOn(dependencyResolver, 'resolveDependencies')
+            .mockResolvedValue(new Map());
+
+        const userMessage = 'Create a vision for a banking app';
+        const context = await service.getContext(mockArtifact, false, userMessage);
+
+        expect(context).toBeDefined();
+        expect(context.user_message).toBe(userMessage);
+    });
+
+    it('should propagate errors from dependency resolver', async () => {
+        const mockArtifact = {
+            id: 2,
+            projectId: 1,
+            artifactTypeId: 2,
+            stateId: 2,
+            name: 'Functional Requirements',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            project: {
+                id: 1,
                 name: 'Test Project',
             },
             artifact_type: {
@@ -189,92 +237,11 @@ describe('ContextManagerService', () => {
             },
         } as ArtifactWithRelations;
 
-        // Mock repository to return empty array (no vision document)
-        jest.spyOn(artifactRepository, 'getArtifactsByType')
-            .mockResolvedValue([]);
+        // Mock dependency resolver to throw an error
+        jest.spyOn(dependencyResolver, 'resolveDependencies')
+            .mockRejectedValue(new Error('Vision document missing'));
 
         await expect(service.getContext(mockArtifact, false))
             .rejects.toThrow('Vision document missing');
-    });
-
-    it('should include all required dependencies for C4 Component', async () => {
-        const mockArtifact = {
-            id: 20,
-            artifactTypeId: 7, // C4 Component
-            name: 'API Component',
-            project: {
-                name: 'Test Project',
-            },
-            artifact_type: {
-                id: 7,
-                name: 'C4 Component',
-                lifecyclePhase: {
-                    name: 'Design',
-                },
-            },
-        } as ArtifactWithRelations;
-
-        // Mock repository to return all required dependencies
-        jest.spyOn(artifactRepository, 'getArtifactsByType')
-            .mockImplementation((artifact, type) => {
-                const typeMap: Record<string, any[]> = {
-                    'Vision Document': [mockVision],
-                    'Functional Requirements': [mockFR],
-                    'Non-Functional Requirements': [mockNFR],
-                    'Use Cases': [mockUseCase],
-                    'C4 Context': [mockC4Context],
-                    'C4 Container': [mockC4Container],
-                    'C4 Component': [mockC4Component],
-                };
-                return Promise.resolve(typeMap[type] || []);
-            });
-
-        const context = await service.getContext(mockArtifact, false);
-
-        expect(context).toBeDefined();
-        expect(context.vision).toBe('Vision content');
-        expect(context.functional_requirements).toBe('Functional requirements content');
-        expect(context.non_functional_requirements).toBe('Non-functional requirements content');
-        expect(context.use_cases).toEqual(['Use case content']);
-        expect(context.c4_context).toBe('C4 Context content');
-        expect(context.c4_container).toBe('C4 Container content');
-    });
-
-    it('should include existing components for C4 Component creation', async () => {
-        const mockArtifact = {
-            id: 21,
-            artifactTypeId: 7, // C4 Component
-            name: 'New Component',
-            project: {
-                name: 'Test Project',
-            },
-            artifact_type: {
-                id: 7,
-                name: 'C4 Component',
-                lifecyclePhase: {
-                    name: 'Design',
-                },
-            },
-        } as ArtifactWithRelations;
-
-        // Mock repository to return all dependencies including existing components
-        jest.spyOn(artifactRepository, 'getArtifactsByType')
-            .mockImplementation((artifact, type) => {
-                const typeMap: Record<string, any[]> = {
-                    'Vision Document': [mockVision],
-                    'Functional Requirements': [mockFR],
-                    'Non-Functional Requirements': [mockNFR],
-                    'Use Cases': [mockUseCase],
-                    'C4 Context': [mockC4Context],
-                    'C4 Container': [mockC4Container],
-                    'C4 Component': [mockC4Component],
-                };
-                return Promise.resolve(typeMap[type] || []);
-            });
-
-        const context = await service.getContext(mockArtifact, false);
-
-        expect(context).toBeDefined();
-        expect(context.c4_components).toEqual(['C4 Component content']);
     });
 });

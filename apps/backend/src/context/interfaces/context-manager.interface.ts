@@ -1,4 +1,3 @@
-import { Artifact } from '@prisma/client';
 import { ArtifactWithRelations } from '../types/artifact-with-relations';
 
 /**
@@ -7,6 +6,8 @@ import { ArtifactWithRelations } from '../types/artifact-with-relations';
 export interface ContextData {
     project: {
         name: string;
+        project_type_id?: number;
+        project_type_name?: string;
         [key: string]: any;
     };
     artifact: {
@@ -18,6 +19,18 @@ export interface ContextData {
     };
     is_update: boolean;
     user_message?: string | null;
+
+    // Dependency fields will be added dynamically
+    // Common dependency fields include:
+    vision?: string;
+    functional_requirements?: string;
+    non_functional_requirements?: string;
+    use_cases?: string[];
+    c4_context?: string;
+    c4_container?: string;
+    c4_components?: string[];
+
+    // Allow additional fields for different project types
     [key: string]: any;
 }
 
@@ -27,7 +40,7 @@ export interface ContextData {
 export interface ContextManagerInterface {
     /**
      * Get context for artifact generation or update
-     * @param artifact The artifact object
+     * @param artifact The artifact object with relations
      * @param isUpdate Whether this is an update operation
      * @param userMessage Optional user message
      * @returns Context data for template rendering and AI generation
