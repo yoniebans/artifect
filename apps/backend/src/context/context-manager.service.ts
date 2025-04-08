@@ -11,14 +11,12 @@ import { DependencyResolver } from './dependency-resolver';
 @Injectable()
 export class ContextManagerService implements ContextManagerInterface {
     private readonly logger = new Logger(ContextManagerService.name);
-    private dependencyResolver: DependencyResolver;
 
     constructor(
         private artifactRepository: ArtifactRepository,
         private cacheService: CacheService,
-    ) {
-        this.dependencyResolver = new DependencyResolver(artifactRepository, cacheService);
-    }
+        private dependencyResolver: DependencyResolver,
+    ) { }
 
     /**
      * Get context for artifact generation or update

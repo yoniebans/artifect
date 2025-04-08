@@ -25,6 +25,7 @@ describe('ContextManagerService', () => {
                     provide: ArtifactRepository,
                     useValue: {
                         getArtifactsByType: jest.fn(),
+                        getArtifactTypeDependencies: jest.fn(),
                     },
                 },
                 {
