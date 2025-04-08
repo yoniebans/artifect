@@ -2,12 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../database/prisma.service';
 import { ArtifactRepository } from './artifact.repository';
 import { CacheService } from '../services/cache/cache.service';
+import { ProjectTypeRepository } from './project-type.repository';
 import { Prisma } from '@prisma/client';
 
 describe('ArtifactRepository', () => {
     let repository: ArtifactRepository;
     let prismaService: PrismaService;
     let cacheService: CacheService;
+    let projectTypeRepository: ProjectTypeRepository;
 
     // Mock data
     const mockArtifactType = {
@@ -21,6 +23,23 @@ describe('ArtifactRepository', () => {
     const mockState = {
         id: 2,
         name: 'In Progress'
+    };
+
+    const mockProject = {
+        id: 1,
+        name: 'Test Project',
+        createdAt: new Date(),
+        updatedAt: null,
+        userId: 1,
+        projectTypeId: 1,
+        projectType: {
+            id: 1,
+            name: 'Software Development',
+            description: 'Standard software development',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        }
     };
 
     const mockArtifact = {
@@ -41,13 +60,14 @@ describe('ArtifactRepository', () => {
             content: 'Test content',
             createdAt: new Date()
         },
-        project: {
-            id: 1,
-            name: 'Test Project',
-            createdAt: new Date(),
-            updatedAt: null
-        }
+        project: mockProject
     };
+
+    const mockPhases = [
+        { id: 1, name: 'Requirements', order: 1, projectTypeId: 1 },
+        { id: 2, name: 'Design', order: 2, projectTypeId: 1 },
+        { id: 3, name: 'Implementation', order: 3, projectTypeId: 1 }
+    ];
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +107,12 @@ describe('ArtifactRepository', () => {
                             create: jest.fn(),
                             findMany: jest.fn(),
                         },
+                        project: {
+                            findUnique: jest.fn(),
+                        },
+                        typeDependency: {
+                            findMany: jest.fn(),
+                        }
                     },
                 },
                 {
@@ -100,12 +126,23 @@ describe('ArtifactRepository', () => {
                         initialize: jest.fn(),
                     },
                 },
+                {
+                    provide: ProjectTypeRepository,
+                    useValue: {
+                        getLifecyclePhases: jest.fn(),
+                        findById: jest.fn(),
+                    }
+                }
             ],
         }).compile();
 
         repository = module.get<ArtifactRepository>(ArtifactRepository);
         prismaService = module.get<PrismaService>(PrismaService);
         cacheService = module.get<CacheService>(CacheService);
+        projectTypeRepository = module.get<ProjectTypeRepository>(ProjectTypeRepository);
+
+        // Setup common mock implementations
+        (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
     });
 
     it('should be defined', () => {
@@ -146,8 +183,11 @@ describe('ArtifactRepository', () => {
                 currentVersionId: 1
             };
 
-            (cacheService.getArtifactStateIdByName as jest.Mock).mockResolvedValue(2);
+            // Setup for project type validation
+            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(mockProject);
             (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue(mockArtifactType);
+
+            (cacheService.getArtifactStateIdByName as jest.Mock).mockResolvedValue(2);
             (prismaService.artifact.create as jest.Mock).mockResolvedValue(artifactWithoutVersion);
             (prismaService.artifactVersion.create as jest.Mock).mockResolvedValue(newVersion);
             (prismaService.artifact.update as jest.Mock).mockResolvedValue(finalArtifact);
@@ -156,6 +196,14 @@ describe('ArtifactRepository', () => {
             const result = await repository.create(createData);
 
             // Verify
+            // Verify project type validation
+            expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+                where: { id: createData.projectId },
+                include: { projectType: true }
+            });
+
+            expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(mockProject.projectTypeId);
+
             expect(prismaService.artifact.create).toHaveBeenCalledWith({
                 data: {
                     projectId: createData.projectId,
@@ -200,14 +248,25 @@ describe('ArtifactRepository', () => {
                 currentVersionId: null
             };
 
-            (cacheService.getArtifactStateIdByName as jest.Mock).mockResolvedValue(2);
+            // Setup for project type validation
+            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(mockProject);
             (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue(mockArtifactType);
+
+            (cacheService.getArtifactStateIdByName as jest.Mock).mockResolvedValue(2);
             (prismaService.artifact.create as jest.Mock).mockResolvedValue(newArtifact);
 
             // Execute
             const result = await repository.create(createData);
 
             // Verify
+            // Verify project type validation
+            expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+                where: { id: createData.projectId },
+                include: { projectType: true }
+            });
+
+            expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(mockProject.projectTypeId);
+
             expect(prismaService.artifact.create).toHaveBeenCalledWith({
                 data: {
                     projectId: createData.projectId,
@@ -251,7 +310,11 @@ describe('ArtifactRepository', () => {
                     artifactType: true,
                     state: true,
                     currentVersion: true,
-                    project: true
+                    project: {
+                        include: {
+                            projectType: true
+                        }
+                    }
                 }
             });
             expect(result).toEqual(mockArtifact);
@@ -412,37 +475,87 @@ describe('ArtifactRepository', () => {
     });
 
     describe('getArtifactsByProjectIdAndPhase', () => {
-        it('should get artifacts by project ID and phase', async () => {
+        it('should get artifacts by project ID and phase name', async () => {
             // Setup
             const artifacts = [mockArtifact];
-            (cacheService.getLifecyclePhaseIdByName as jest.Mock).mockResolvedValue(1);
+
+            // Setup for project type validation
+            (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                id: 1,
+                projectTypeId: 1
+            });
+
             (prismaService.artifact.findMany as jest.Mock).mockResolvedValue(artifacts);
 
             // Execute
             const result = await repository.getArtifactsByProjectIdAndPhase(1, 'Requirements');
 
             // Verify
-            // Using any to skip type checking as we're testing the implementation
+            expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+                where: { id: 1 },
+                select: { projectTypeId: true }
+            });
+
+            expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(1);
+
             expect(prismaService.artifact.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: {
                     projectId: 1,
                     artifactType: {
-                        lifecyclePhase: { id: 1 }
+                        lifecyclePhaseId: 1 // ID of Requirements phase
                     }
                 },
                 include: expect.objectContaining({
                     currentVersion: true
                 })
             }));
+
             expect(result).toEqual(artifacts);
         });
 
-        it('should throw error if phase not found', async () => {
+        it('should get artifacts by project ID and phase ID', async () => {
             // Setup
-            (cacheService.getLifecyclePhaseIdByName as jest.Mock).mockResolvedValue(null);
+            const artifacts = [mockArtifact];
+            const phaseId = 1; // Requirements phase
+
+            // Setup for project type validation
+            (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                id: 1,
+                projectTypeId: 1
+            });
+
+            (prismaService.artifact.findMany as jest.Mock).mockResolvedValue(artifacts);
+
+            // Execute
+            const result = await repository.getArtifactsByProjectIdAndPhase(1, phaseId);
+
+            // Verify
+            expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+                where: { id: 1 },
+                select: { projectTypeId: true }
+            });
+
+            expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(1);
+
+            expect(prismaService.artifact.findMany).toHaveBeenCalledWith(expect.objectContaining({
+                where: {
+                    projectId: 1,
+                    artifactType: {
+                        lifecyclePhaseId: phaseId
+                    }
+                }
+            }));
+
+            expect(result).toEqual(artifacts);
+        });
+
+        it('should throw error if project not found', async () => {
+            // Setup
+            (prismaService.project.findUnique as jest.Mock).mockResolvedValue(null);
 
             // Execute & Verify
-            await expect(repository.getArtifactsByProjectIdAndPhase(1, 'Invalid')).rejects.toThrow('Invalid lifecycle phase');
+            await expect(repository.getArtifactsByProjectIdAndPhase(999, 'Requirements'))
+                .rejects.toThrow('Project with ID 999 not found');
         });
     });
 
@@ -722,6 +835,267 @@ describe('ArtifactRepository', () => {
 
             // Execute & Verify
             await expect(repository.getLastInteractions(999)).rejects.toThrow('Artifact with id 999 not found');
+        });
+    });
+
+    // New tests for project type functionality
+    describe('Project Type Support', () => {
+        describe('create with project type validation', () => {
+            it('should throw error if project not found', async () => {
+                // Setup
+                const createData = {
+                    projectId: 999,
+                    artifactTypeId: 1,
+                    name: 'New Artifact'
+                };
+
+                (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue(mockArtifactType);
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue(null);
+
+                // Execute & Verify
+                await expect(repository.create(createData)).rejects.toThrow('Project with ID 999 not found');
+            });
+
+            it('should throw error when artifact type does not belong to project type', async () => {
+                // Setup
+                const createData = {
+                    projectId: 1,
+                    artifactTypeId: 1,
+                    name: 'New Artifact'
+                };
+
+                const invalidArtifactType = {
+                    ...mockArtifactType,
+                    lifecyclePhaseId: 999 // Not in the project's phases
+                };
+
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue(mockProject);
+                (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue(invalidArtifactType);
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                // Execute & Verify
+                await expect(repository.create(createData)).rejects.toThrow(
+                    'Artifact type Vision Document is not valid for project type Software Development'
+                );
+            });
+        });
+
+        describe('getArtifactsByProjectIdAndPhase with project type validation', () => {
+            it('should throw error for invalid phase name for project type', async () => {
+                // Setup
+                const projectId = 1;
+                const invalidPhaseName = 'InvalidPhase';
+
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                    id: projectId,
+                    projectTypeId: 1
+                });
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                // Execute & Verify
+                await expect(repository.getArtifactsByProjectIdAndPhase(projectId, invalidPhaseName))
+                    .rejects.toThrow('Phase "InvalidPhase" not found for project\'s type');
+            });
+
+            it('should throw error for invalid phase ID for project type', async () => {
+                // Setup
+                const projectId = 1;
+                const invalidPhaseId = 999;
+
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                    id: projectId,
+                    projectTypeId: 1
+                });
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                // Execute & Verify
+                await expect(repository.getArtifactsByProjectIdAndPhase(projectId, invalidPhaseId))
+                    .rejects.toThrow('Phase ID 999 is not valid for project\'s type');
+            });
+        });
+
+        describe('getArtifactTypesByPhase with project type filtering', () => {
+            it('should get artifact types by phase name and project type', async () => {
+                // Setup
+                const phaseName = 'Requirements';
+                const projectTypeId = 1;
+                const mockArtifactTypes = [mockArtifactType];
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+                (prismaService.artifactType.findMany as jest.Mock).mockResolvedValue(mockArtifactTypes);
+
+                // Execute
+                const result = await repository.getArtifactTypesByPhase(phaseName, projectTypeId);
+
+                // Verify
+                expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(projectTypeId);
+
+                expect(prismaService.artifactType.findMany).toHaveBeenCalledWith({
+                    where: { lifecyclePhaseId: 1 }
+                });
+
+                expect(result).toEqual(mockArtifactTypes);
+            });
+
+            it('should get artifact types by phase ID with project type validation', async () => {
+                // Setup
+                const phaseId = 1;
+                const projectTypeId = 1;
+                const mockArtifactTypes = [mockArtifactType];
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+                (prismaService.artifactType.findMany as jest.Mock).mockResolvedValue(mockArtifactTypes);
+
+                // Execute
+                const result = await repository.getArtifactTypesByPhase(phaseId, projectTypeId);
+
+                // Verify
+                expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(projectTypeId);
+
+                expect(prismaService.artifactType.findMany).toHaveBeenCalledWith({
+                    where: { lifecyclePhaseId: phaseId }
+                });
+
+                expect(result).toEqual(mockArtifactTypes);
+            });
+
+            it('should fall back to cache service when no project type is provided', async () => {
+                // Setup
+                const phaseName = 'Requirements';
+                const mockArtifactTypes = [mockArtifactType];
+
+                (cacheService.getLifecyclePhaseIdByName as jest.Mock).mockResolvedValue(1);
+                (prismaService.artifactType.findMany as jest.Mock).mockResolvedValue(mockArtifactTypes);
+
+                // Execute
+                const result = await repository.getArtifactTypesByPhase(phaseName);
+
+                // Verify
+                expect(cacheService.getLifecyclePhaseIdByName).toHaveBeenCalledWith(phaseName);
+
+                expect(prismaService.artifactType.findMany).toHaveBeenCalledWith({
+                    where: { lifecyclePhaseId: 1 }
+                });
+
+                expect(result).toEqual(mockArtifactTypes);
+            });
+        });
+
+        describe('getLifecyclePhases with project type filtering', () => {
+            it('should get lifecycle phases for a specific project type', async () => {
+                // Setup
+                const projectTypeId = 1;
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                // Execute
+                const result = await repository.getLifecyclePhases(projectTypeId);
+
+                // Verify
+                expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(projectTypeId);
+                expect(result).toEqual(mockPhases);
+            });
+
+            it('should get all lifecycle phases when no project type is specified', async () => {
+                // Setup
+                (prismaService.lifecyclePhase.findMany as jest.Mock).mockResolvedValue(mockPhases);
+
+                // Execute
+                const result = await repository.getLifecyclePhases();
+
+                // Verify
+                expect(prismaService.lifecyclePhase.findMany).toHaveBeenCalledWith({
+                    orderBy: { order: 'asc' }
+                });
+                expect(result).toEqual(mockPhases);
+            });
+        });
+
+        describe('getArtifactsByType with project type validation', () => {
+            it('should validate artifact type belongs to project type before getting artifacts', async () => {
+                // Setup
+                const artifactTypeName = 'Vision Document';
+                const typeInfo = { typeId: 1 };
+
+                (cacheService.getArtifactTypeInfo as jest.Mock).mockResolvedValue(typeInfo);
+
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                    id: 1,
+                    projectTypeId: 1
+                });
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue({
+                    ...mockArtifactType,
+                    lifecyclePhase: { id: 1, name: 'Requirements' }
+                });
+
+                const relatedArtifacts = [
+                    { id: 2, name: 'Another Vision Doc', artifactTypeId: 1, projectId: 1 }
+                ];
+
+                (prismaService.artifact.findMany as jest.Mock).mockResolvedValue(relatedArtifacts);
+
+                // Execute
+                const result = await repository.getArtifactsByType(mockArtifact, artifactTypeName);
+
+                // Verify
+                expect(cacheService.getArtifactTypeInfo).toHaveBeenCalledWith(artifactTypeName);
+
+                expect(prismaService.project.findUnique).toHaveBeenCalledWith({
+                    where: { id: mockArtifact.projectId },
+                    select: { projectTypeId: true }
+                });
+
+                expect(prismaService.artifactType.findUnique).toHaveBeenCalledWith({
+                    where: { id: typeInfo.typeId },
+                    include: { lifecyclePhase: true }
+                });
+
+                expect(projectTypeRepository.getLifecyclePhases).toHaveBeenCalledWith(1);
+
+                expect(prismaService.artifact.findMany).toHaveBeenCalledWith({
+                    where: {
+                        projectId: mockArtifact.projectId,
+                        artifactTypeId: typeInfo.typeId,
+                        id: { lt: mockArtifact.id }
+                    },
+                    include: {
+                        currentVersion: true
+                    }
+                });
+
+                expect(result).toEqual(relatedArtifacts);
+            });
+
+            it('should throw error when artifact type does not belong to project type', async () => {
+                // Setup
+                const artifactTypeName = 'Invalid Type';
+                const typeInfo = { typeId: 999 };
+
+                (cacheService.getArtifactTypeInfo as jest.Mock).mockResolvedValue(typeInfo);
+
+                (prismaService.project.findUnique as jest.Mock).mockResolvedValue({
+                    id: 1,
+                    projectTypeId: 1
+                });
+
+                (projectTypeRepository.getLifecyclePhases as jest.Mock).mockResolvedValue(mockPhases);
+
+                (prismaService.artifactType.findUnique as jest.Mock).mockResolvedValue({
+                    id: 999,
+                    name: 'Invalid Type',
+                    lifecyclePhaseId: 999,
+                    lifecyclePhase: { id: 999, name: 'Invalid Phase' }
+                });
+
+                // Execute & Verify
+                await expect(repository.getArtifactsByType(mockArtifact, artifactTypeName))
+                    .rejects.toThrow('Artifact type Invalid Type is not valid for this project\'s type');
+            });
         });
     });
 });

@@ -15,12 +15,14 @@ import {
     ArtifactUpdateDTO
 } from './interfaces/artifact.repository.interface';
 import { CacheService } from '../services/cache/cache.service';
+import { ProjectTypeRepository } from './project-type.repository';
 
 @Injectable()
 export class ArtifactRepository implements ArtifactRepositoryInterface {
     constructor(
         private prisma: PrismaService,
-        private cacheService: CacheService
+        private cacheService: CacheService,
+        private projectTypeRepository: ProjectTypeRepository
     ) { }
 
     /**
@@ -35,6 +37,23 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
             const artifactType = await this.getArtifactType(artifactTypeId);
             if (!artifactType) {
                 throw new Error(`Invalid artifact type ID: ${artifactTypeId}`);
+            }
+
+            // Get the project to validate the artifact type belongs to the correct project type
+            const project = await this.prisma.project.findUnique({
+                where: { id: data.projectId },
+                include: { projectType: true }
+            });
+
+            if (!project) {
+                throw new Error(`Project with ID ${data.projectId} not found`);
+            }
+
+            // Validate the artifact type belongs to a lifecycle phase in this project type
+            const lifecyclePhaseIds = await this.getProjectTypePhaseIds(project.projectTypeId);
+
+            if (!lifecyclePhaseIds.includes(artifactType.lifecyclePhaseId)) {
+                throw new Error(`Artifact type ${artifactType.name} is not valid for project type ${project.projectType.name}`);
             }
 
             // Get the default state (In Progress)
@@ -104,7 +123,11 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
                 artifactType: true,
                 state: true,
                 currentVersion: true,
-                project: true
+                project: {
+                    include: {
+                        projectType: true
+                    }
+                }
             }
         });
     }
@@ -118,7 +141,12 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
             include: {
                 artifactType: true,
                 state: true,
-                currentVersion: true
+                currentVersion: true,
+                project: {
+                    include: {
+                        projectType: true
+                    }
+                }
             }
         });
     }
@@ -226,43 +254,82 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
     }
 
     /**
+     * Helper method to get phase IDs for a project type
+     * @param projectTypeId Project type ID
+     * @returns Array of phase IDs
+     */
+    private async getProjectTypePhaseIds(projectTypeId: number): Promise<number[]> {
+        const phases = await this.projectTypeRepository.getLifecyclePhases(projectTypeId);
+        return phases.map(phase => phase.id);
+    }
+
+    /**
      * Get artifacts by project ID and lifecycle phase
      * @param projectId Project ID
-     * @param phase Phase name
+     * @param phase Phase name or ID
      * @returns Array of artifacts
      */
-    async getArtifactsByProjectIdAndPhase(projectId: number, phase: string): Promise<Artifact[]> {
-        const phaseId = await this.cacheService.getLifecyclePhaseIdByName(phase);
-        if (!phaseId) {
-            throw new Error(`Invalid lifecycle phase: ${phase}`);
-        }
+    async getArtifactsByProjectIdAndPhase(projectId: number, phase: string | number): Promise<Artifact[]> {
+        try {
+            // First, get the project to determine its project type
+            const project = await this.prisma.project.findUnique({
+                where: { id: projectId },
+                select: { projectTypeId: true }
+            });
 
-        // Use type assertion to bypass TypeScript checking for the include structure
-        // This is needed because there's a mismatch between the Prisma schema and test expectations
-        const query = {
-            where: {
-                projectId,
-                artifactType: {
-                    lifecyclePhase: {
-                        id: phaseId
-                    }
+            if (!project) {
+                throw new Error(`Project with ID ${projectId} not found`);
+            }
+
+            // Determine phase ID based on input type
+            let phaseId: number;
+
+            if (typeof phase === 'number') {
+                // If phase is provided as a number (ID), validate it's valid for this project type
+                const validPhaseIds = await this.getProjectTypePhaseIds(project.projectTypeId);
+                if (!validPhaseIds.includes(phase)) {
+                    throw new Error(`Phase ID ${phase} is not valid for project's type`);
                 }
-            },
-            include: {
-                currentVersion: true,
-                artifactType: {
-                    include: {
-                        // TypeScript will complain about these property names, but this is what the test expects
-                        // We're using any type to bypass the type checking
-                        dependentTypes: true,
-                        dependencyTypes: true
+                phaseId = phase;
+            } else {
+                // If phase is provided as a name, get the corresponding ID for this project type
+                const phases = await this.projectTypeRepository.getLifecyclePhases(project.projectTypeId);
+                const matchingPhase = phases.find(p => p.name.toLowerCase() === phase.toLowerCase());
+
+                if (!matchingPhase) {
+                    throw new Error(`Phase "${phase}" not found for project's type`);
+                }
+
+                phaseId = matchingPhase.id;
+            }
+
+            // Use type assertion to bypass TypeScript checking for the include structure
+            // This is needed because there's a mismatch between the Prisma schema and test expectations
+            const query = {
+                where: {
+                    projectId,
+                    artifactType: {
+                        lifecyclePhaseId: phaseId
                     }
                 },
-                state: true
-            }
-        } as any;
+                include: {
+                    currentVersion: true,
+                    artifactType: {
+                        include: {
+                            // TypeScript will complain about these property names, but this is what the test expects
+                            // We're using any type to bypass the type checking
+                            dependentTypes: true,
+                            dependencyTypes: true
+                        }
+                    },
+                    state: true
+                }
+            } as any;
 
-        return this.prisma.artifact.findMany(query);
+            return this.prisma.artifact.findMany(query);
+        } catch (error) {
+            throw new Error(`Failed to get artifacts by project and phase: ${error.message}`);
+        }
     }
 
     /**
@@ -426,19 +493,56 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
     }
 
     /**
-     * Get artifact types by lifecycle phase
-     * @param phase Phase name
+     * Get artifact types by lifecycle phase, optionally filtered by project type
+     * @param phase Phase name or ID
+     * @param projectTypeId Optional project type ID to filter by
      * @returns Array of artifact types
      */
-    async getArtifactTypesByPhase(phase: string): Promise<ArtifactType[]> {
-        const phaseId = await this.cacheService.getLifecyclePhaseIdByName(phase);
-        if (!phaseId) {
-            throw new Error(`Invalid lifecycle phase: ${phase}`);
-        }
+    async getArtifactTypesByPhase(phase: string | number, projectTypeId?: number): Promise<ArtifactType[]> {
+        try {
+            let whereClause: any = {};
 
-        return this.prisma.artifactType.findMany({
-            where: { lifecyclePhaseId: phaseId }
-        });
+            // Determine phase ID based on input type and project type context
+            if (typeof phase === 'number') {
+                // If phase is provided as a number (ID)
+                whereClause.lifecyclePhaseId = phase;
+
+                // If project type ID is provided, validate the phase belongs to it
+                if (projectTypeId) {
+                    const validPhaseIds = await this.getProjectTypePhaseIds(projectTypeId);
+                    if (!validPhaseIds.includes(phase)) {
+                        throw new Error(`Phase ID ${phase} is not valid for project type ${projectTypeId}`);
+                    }
+                }
+            } else {
+                // If phase is provided as a name
+                if (projectTypeId) {
+                    // If project type ID is provided, find the phase in that project type
+                    const phases = await this.projectTypeRepository.getLifecyclePhases(projectTypeId);
+                    const matchingPhase = phases.find(p => p.name.toLowerCase() === phase.toLowerCase());
+
+                    if (!matchingPhase) {
+                        throw new Error(`Phase "${phase}" not found for project type ${projectTypeId}`);
+                    }
+
+                    whereClause.lifecyclePhaseId = matchingPhase.id;
+                } else {
+                    // If no project type ID is provided, use the cached phase ID lookup
+                    // Note: This is potentially ambiguous as phase names could exist in multiple project types
+                    const phaseId = await this.cacheService.getLifecyclePhaseIdByName(phase);
+                    if (!phaseId) {
+                        throw new Error(`Invalid lifecycle phase: ${phase}`);
+                    }
+                    whereClause.lifecyclePhaseId = phaseId;
+                }
+            }
+
+            return this.prisma.artifactType.findMany({
+                where: whereClause
+            });
+        } catch (error) {
+            throw new Error(`Failed to get artifact types by phase: ${error.message}`);
+        }
     }
 
     /**
@@ -488,10 +592,16 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
     }
 
     /**
-     * Get all lifecycle phases
+     * Get all lifecycle phases, optionally filtered by project type
+     * @param projectTypeId Optional project type ID to filter by
      * @returns Array of lifecycle phases
      */
-    async getLifecyclePhases(): Promise<LifecyclePhase[]> {
+    async getLifecyclePhases(projectTypeId?: number): Promise<LifecyclePhase[]> {
+        if (projectTypeId) {
+            return this.projectTypeRepository.getLifecyclePhases(projectTypeId);
+        }
+
+        // If no project type ID provided, get all phases
         return this.prisma.lifecyclePhase.findMany({
             orderBy: { order: 'asc' }
         });
@@ -558,6 +668,31 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
         const { typeId } = await this.cacheService.getArtifactTypeInfo(artifactType) || {};
         if (!typeId) {
             throw new Error(`${artifactType} artifact type not found in cache`);
+        }
+
+        // Get the project to validate the artifact type belongs to the correct project type
+        const project = await this.prisma.project.findUnique({
+            where: { id: artifact.projectId },
+            select: { projectTypeId: true }
+        });
+
+        if (!project) {
+            throw new Error(`Project not found for artifact ${artifact.id}`);
+        }
+
+        // Validate the artifact type belongs to a lifecycle phase in this project type
+        const artifactTypeObj = await this.prisma.artifactType.findUnique({
+            where: { id: typeId },
+            include: { lifecyclePhase: true }
+        });
+
+        if (!artifactTypeObj) {
+            throw new Error(`Artifact type with ID ${typeId} not found`);
+        }
+
+        const validPhaseIds = await this.getProjectTypePhaseIds(project.projectTypeId);
+        if (!validPhaseIds.includes(artifactTypeObj.lifecyclePhaseId)) {
+            throw new Error(`Artifact type ${artifactType} is not valid for this project's type`);
         }
 
         // Query the database for artifact dependencies
