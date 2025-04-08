@@ -23,18 +23,29 @@ erDiagram
         datetime updatedAt
     }
 
+    ProjectType {
+        int id PK
+        string name UK
+        string description
+        boolean isActive
+        datetime created_at
+        datetime updated_at
+    }
+
     Project {
         int id PK
         string name
         datetime created_at
         datetime updated_at
         int userId FK
+        int project_type_id FK
     }
 
     LifecyclePhase {
         int id PK
         string name
         int order
+        int project_type_id FK
     }
 
     ArtifactType {
@@ -111,6 +122,8 @@ erDiagram
     }
 
     User ||--o{ Project : "has many"
+    ProjectType ||--o{ Project : "has many"
+    ProjectType ||--o{ LifecyclePhase : "has many"
     Project ||--o{ Artifact : "has many"
 
     LifecyclePhase ||--o{ ArtifactType : "has many"
@@ -143,8 +156,9 @@ erDiagram
 
 ### Project Structure
 
-- **Project**: Top-level container for artifacts
-- **LifecyclePhase**: Development stages (Requirements, Design, etc.)
+- **ProjectType**: Types of projects (Software Development, Product Design, etc.)
+- **Project**: Top-level container for artifacts, associated with a project type
+- **LifecyclePhase**: Development stages (Requirements, Design, etc.) specific to a project type
 - **ArtifactType**: Categories for artifacts (Vision, Requirements, etc.)
 - **TypeDependency**: Dependencies between artifact types
 
@@ -232,15 +246,21 @@ export class ProjectService {
       where: { id },
       include: {
         artifacts: true,
+        projectType: true,
       },
     });
   }
 
-  async createProject(name: string, userId: number): Promise<Project> {
+  async createProject(
+    name: string,
+    userId: number,
+    projectTypeId: number,
+  ): Promise<Project> {
     return this.prisma.project.create({
       data: {
         name,
         userId,
+        projectTypeId,
       },
     });
   }
@@ -257,6 +277,7 @@ The database schema is defined in `prisma/schema.prisma` and managed through Pri
 - **Relations**: Fully defined relationships between entities
 - **Indexes**: Strategic indexes for performance optimization
 - **Constraints**: Unique constraints and foreign key relationships
+- **Project Types**: Projects are now organized by project types, which define appropriate lifecycle phases
 
 ## Database Operations
 
@@ -363,6 +384,7 @@ await this.prisma.$transaction(async (tx) => {
 5. **Connection Management**: Let PrismaService handle connections via lifecycle hooks
 6. **Separation of Concerns**: Keep database access logic separated from business logic
 7. **Testing**: Use a separate test database and the `cleanDatabase` method
+8. **Project Types**: Respect the project type hierarchy when creating and querying entities
 
 ## Future Improvements
 
@@ -372,3 +394,4 @@ await this.prisma.$transaction(async (tx) => {
 - Add audit logging for data changes
 - Optimize indexes based on query patterns
 - Implement database-level row-level security
+- Add configurable project type templates

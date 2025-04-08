@@ -26,33 +26,47 @@ describe('CacheService', () => {
 
     const mockLifecyclePhases = [
         { id: 1, name: 'Requirements', order: 1, projectTypeId: 1 },
-        { id: 2, name: 'Design', order: 2, projectTypeId: 1 },
-        { id: 3, name: 'Research', order: 1, projectTypeId: 2 }
+        { id: 2, name: 'Design', order: 2, projectTypeId: 1 }
     ];
 
-    // New mock data for project types
+    // Mock project types
     const mockProjectTypes = [
         {
             id: 1,
             name: 'Software Development',
-            description: 'Software development project',
+            description: 'Standard software development',
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
             lifecyclePhases: [
-                { id: 1, name: 'Requirements', order: 1, projectTypeId: 1 },
-                { id: 2, name: 'Design', order: 2, projectTypeId: 1 }
+                {
+                    id: 1,
+                    name: 'Requirements',
+                    order: 1,
+                    projectTypeId: 1
+                },
+                {
+                    id: 2,
+                    name: 'Design',
+                    order: 2,
+                    projectTypeId: 1
+                }
             ]
         },
         {
             id: 2,
             name: 'Product Design',
-            description: 'Product design project',
+            description: 'Product design workflow',
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
             lifecyclePhases: [
-                { id: 3, name: 'Research', order: 1, projectTypeId: 2 }
+                {
+                    id: 3,
+                    name: 'Research',
+                    order: 1,
+                    projectTypeId: 2
+                }
             ]
         }
     ];
@@ -96,7 +110,7 @@ describe('CacheService', () => {
     });
 
     describe('initialize', () => {
-        it('should load cache data from the database', async () => {
+        it('should load cache data from the database including project types', async () => {
             await service.initialize();
 
             expect(prismaService.artifactType.findMany).toHaveBeenCalled();
@@ -116,6 +130,7 @@ describe('CacheService', () => {
             await service.initialize();
 
             expect(prismaService.artifactType.findMany).not.toHaveBeenCalled();
+            expect(prismaService.projectType.findMany).not.toHaveBeenCalled();
         });
     });
 
@@ -213,12 +228,12 @@ describe('CacheService', () => {
         });
     });
 
-    // New tests for project type methods
+    // New tests for project type related methods
     describe('getProjectTypeById', () => {
         it('should return project type info by ID', async () => {
             await service.initialize();
-            const projectTypeInfo = await service.getProjectTypeById(1);
-            expect(projectTypeInfo).toEqual({
+            const typeInfo = await service.getProjectTypeById(1);
+            expect(typeInfo).toEqual({
                 id: 1,
                 name: 'Software Development'
             });
@@ -226,8 +241,8 @@ describe('CacheService', () => {
 
         it('should return null for unknown project type ID', async () => {
             await service.initialize();
-            const projectTypeInfo = await service.getProjectTypeById(999);
-            expect(projectTypeInfo).toBeNull();
+            const typeInfo = await service.getProjectTypeById(999);
+            expect(typeInfo).toBeNull();
         });
     });
 
@@ -242,20 +257,16 @@ describe('CacheService', () => {
         });
 
         it('should return null when no project types exist', async () => {
-            // Override for this test only
+            // Mock an empty array of project types
             jest.spyOn(prismaService.projectType, 'findMany').mockResolvedValueOnce([]);
-
-            // Re-initialize with empty array
-            (service as any).initialized = false;
             await service.initialize();
-
             const defaultType = await service.getDefaultProjectType();
             expect(defaultType).toBeNull();
         });
     });
 
     describe('getProjectTypePhases', () => {
-        it('should return phases for a project type', async () => {
+        it('should return phases for a valid project type', async () => {
             await service.initialize();
             const phases = await service.getProjectTypePhases(1);
             expect(phases).toEqual([1, 2]);
