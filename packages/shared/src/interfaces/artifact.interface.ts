@@ -10,6 +10,8 @@ export interface IArtifact {
     artifact_version_number?: string;
     artifact_version_content?: string;
     dependent_type_id?: string | null;
+    project_type_id?: string;  // Added project type ID
+    project_type_name?: string; // Added project type name
     available_transitions: IStateTransition[];
 }
 

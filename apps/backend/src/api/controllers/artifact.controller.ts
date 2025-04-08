@@ -69,6 +69,9 @@ export class ArtifactController {
         } catch (error) {
             if (error.message.includes('not found')) {
                 throw new NotFoundException(error.message);
+            } else if (error.message.includes('invalid artifact type') ||
+                error.message.includes('not allowed in this project type')) {
+                throw new BadRequestException(error.message);
             } else {
                 throw new BadRequestException(error.message);
             }
@@ -90,6 +93,10 @@ export class ArtifactController {
         artifactDto.artifact_version_number = data.artifact.artifact_version_number;
         artifactDto.artifact_version_content = data.artifact.artifact_version_content;
         artifactDto.dependent_type_id = data.artifact.dependent_type_id;
+
+        // Add project type information
+        artifactDto.project_type_id = data.artifact.project_type_id;
+        artifactDto.project_type_name = data.artifact.project_type_name;
 
         // Create state transition DTOs
         artifactDto.available_transitions = (data.artifact.available_transitions || []).map((transition: any) => {

@@ -6,6 +6,8 @@ export interface IProject {
     name: string;
     created_at: string;
     updated_at?: string | null;
+    project_type_id?: string;  // Added project type ID
+    project_type_name?: string; // Added project type name
     phases: IPhase[];
 }
 
@@ -18,4 +20,5 @@ export interface IPhase {
 
 export interface IProjectCreate {
     name: string;
+    project_type_id?: number; // Added optional project type ID
 }

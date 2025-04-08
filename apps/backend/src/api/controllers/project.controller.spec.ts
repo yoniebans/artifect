@@ -63,13 +63,15 @@ describe('ProjectController', () => {
     });
 
     describe('createProject', () => {
-        it('should create a new project', async () => {
+        it('should create a new project with default project type', async () => {
             const projectCreateDto: ProjectCreateDto = { name: 'Test Project' };
             const expectedProject = {
                 project_id: '1',
                 name: 'Test Project',
                 created_at: new Date(),
                 updated_at: undefined,
+                project_type_id: '1',
+                project_type_name: 'Software Engineering',
             };
 
             // Use type assertion for mock implementation
@@ -80,25 +82,57 @@ describe('ProjectController', () => {
             expect(result).toEqual(expectedProject);
             expect(workflowOrchestrator.createProject).toHaveBeenCalledWith(
                 projectCreateDto.name,
-                mockUser.id
+                mockUser.id,
+                undefined // No project type specified, should use default
+            );
+        });
+
+        it('should create a new project with specified project type', async () => {
+            const projectCreateDto: ProjectCreateDto = {
+                name: 'Test Project',
+                project_type_id: 2 // E.g., Product Design project type
+            };
+            const expectedProject = {
+                project_id: '1',
+                name: 'Test Project',
+                created_at: new Date(),
+                updated_at: undefined,
+                project_type_id: '2',
+                project_type_name: 'Product Design',
+            };
+
+            // Use type assertion for mock implementation
+            jest.spyOn(workflowOrchestrator, 'createProject').mockResolvedValue(expectedProject as any);
+
+            const result = await controller.createProject(projectCreateDto, mockUser);
+
+            expect(result).toEqual(expectedProject);
+            expect(workflowOrchestrator.createProject).toHaveBeenCalledWith(
+                projectCreateDto.name,
+                mockUser.id,
+                projectCreateDto.project_type_id
             );
         });
     });
 
     describe('listProjects', () => {
-        it('should return a list of projects', async () => {
+        it('should return a list of projects with project type information', async () => {
             const expectedProjects = [
                 {
                     project_id: '1',
                     name: 'Project 1',
                     created_at: new Date(),
                     updated_at: undefined,
+                    project_type_id: '1',
+                    project_type_name: 'Software Engineering',
                 },
                 {
                     project_id: '2',
                     name: 'Project 2',
                     created_at: new Date(),
                     updated_at: undefined,
+                    project_type_id: '2',
+                    project_type_name: 'Product Design',
                 },
             ];
 
@@ -113,13 +147,15 @@ describe('ProjectController', () => {
     });
 
     describe('viewProject', () => {
-        it('should return a project by ID', async () => {
+        it('should return a project by ID with project type information', async () => {
             const projectId = '1';
             const mockProjectData = {
                 project_id: projectId,
                 name: 'Test Project',
                 created_at: new Date(),
                 updated_at: undefined,
+                project_type_id: '1',
+                project_type_name: 'Software Engineering',
                 artifacts: {
                     'Requirements': [
                         {
@@ -151,6 +187,8 @@ describe('ProjectController', () => {
             const result = await controller.viewProject(projectId, mockUser);
 
             expect(result).toHaveProperty('project_id', projectId);
+            expect(result).toHaveProperty('project_type_id', '1');
+            expect(result).toHaveProperty('project_type_name', 'Software Engineering');
             expect(result).toHaveProperty('phases');
             expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId), mockUser.id);
         });

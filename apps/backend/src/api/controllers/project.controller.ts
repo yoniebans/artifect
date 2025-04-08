@@ -28,10 +28,11 @@ export class ProjectController {
         @Body() projectData: ProjectCreateDto,
         @CurrentUser() user: User
     ): Promise<ProjectSummaryDto> {
-        // Pass the user ID to associate the project with the user
+        // Pass the optional project type ID to associate the project with a specific type
         const project = await this.workflowOrchestrator.createProject(
             projectData.name,
-            user.id
+            user.id,
+            projectData.project_type_id
         );
         return project as unknown as ProjectSummaryDto;
     }
@@ -119,6 +120,8 @@ export class ProjectController {
             projectDto.name = projectData.name;
             projectDto.created_at = this.convertToString(projectData.created_at) || "";
             projectDto.updated_at = this.convertToString(projectData.updated_at);
+            projectDto.project_type_id = projectData.project_type_id;
+            projectDto.project_type_name = projectData.project_type_name;
             projectDto.phases = artifactPhases;
 
             return projectDto;

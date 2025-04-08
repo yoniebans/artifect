@@ -69,6 +69,14 @@ export class ArtifactDetailDto extends ArtifactDto {
     @IsOptional()
     @IsString()
     artifact_version_content?: string;
+
+    @IsOptional()
+    @IsString()
+    project_type_id?: string;
+
+    @IsOptional()
+    @IsString()
+    project_type_name?: string;
 }
 
 export class ArtifactPhaseDto {

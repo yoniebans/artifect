@@ -223,7 +223,8 @@ describe('API Integration Tests', () => {
 
             expect(mockWorkflowOrchestrator.createProject).toHaveBeenCalledWith(
                 projectData.name,
-                1 // Check that the user ID was passed
+                1, // Check that the user ID was passed
+                undefined // No project type specified
             );
 
             // Store the project ID for later tests
@@ -285,6 +286,41 @@ describe('API Integration Tests', () => {
             await request(app.getHttpServer())
                 .get('/project/9999')
                 .expect(404);
+        });
+
+        // Add project type specific tests
+        it('POST /project/new - should create a project with specified project type', async () => {
+            const projectData = { 
+                name: 'Product Design Project',
+                project_type_id: 2
+            };
+            
+            const createdProject = {
+                project_id: '2',
+                name: 'Product Design Project',
+                created_at: new Date(),
+                updated_at: null,
+                project_type_id: '2',
+                project_type_name: 'Product Design'
+            };
+
+            mockWorkflowOrchestrator.createProject.mockResolvedValue(createdProject);
+
+            const response = await request(app.getHttpServer())
+                .post('/project/new')
+                .send(projectData)
+                .expect(201);
+
+            expect(response.body.project_id).toEqual(createdProject.project_id);
+            expect(response.body.name).toEqual(createdProject.name);
+            expect(response.body.project_type_id).toEqual('2');
+            expect(response.body.project_type_name).toEqual('Product Design');
+
+            expect(mockWorkflowOrchestrator.createProject).toHaveBeenCalledWith(
+                projectData.name,
+                1,
+                projectData.project_type_id
+            );
         });
     });
 
@@ -495,6 +531,28 @@ describe('API Integration Tests', () => {
                 1 // Check that the user ID was passed
             );
         });
+
+        // Add new test for project type validation in artifacts
+        it('POST /artifact/new - should reject invalid artifact type for project type', async () => {
+            const artifactData = {
+                project_id: projectId,
+                artifact_type_name: 'Market Analysis' // Not valid for Software Engineering
+            };
+
+            mockWorkflowOrchestrator.createArtifact.mockRejectedValue(
+                new Error('Artifact type "Market Analysis" is not allowed in this project type')
+            );
+
+            const response = await request(app.getHttpServer())
+                .post('/artifact/new')
+                .send(artifactData)
+                .set('X-AI-Provider', 'anthropic')
+                .set('X-AI-Model', 'claude-3-opus-20240229')
+                .expect(400);
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body.message).toContain('not allowed in this project type');
+        });
     });
 
     describe('AI Provider Endpoints', () => {
@@ -538,6 +596,75 @@ describe('API Integration Tests', () => {
                     // Missing messages array
                 })
                 .expect(400);
+        });
+
+        // Add project type validation test
+        it('should validate project_type_id as a number', async () => {
+            await request(app.getHttpServer())
+                .post('/project/new')
+                .send({
+                    name: 'Test Project',
+                    project_type_id: 'not-a-number'
+                })
+                .expect(400);
+        });
+    });
+
+    // Add additional tests for project type functionality
+    describe('Project Type Integration', () => {
+        it('GET /project/:id - should return project with project type information', async () => {
+            const projectDetails = {
+                project_id: '2',
+                name: 'Product Design Project',
+                created_at: new Date(),
+                updated_at: null,
+                project_type_id: '2',
+                project_type_name: 'Product Design',
+                phases: [],
+                artifacts: {
+                    'Research': []
+                }
+            };
+
+            mockWorkflowOrchestrator.viewProject.mockResolvedValue(projectDetails);
+
+            const response = await request(app.getHttpServer())
+                .get('/project/2')
+                .expect(200);
+
+            expect(response.body).toHaveProperty('project_id', '2');
+            expect(response.body).toHaveProperty('project_type_id', '2');
+            expect(response.body).toHaveProperty('project_type_name', 'Product Design');
+        });
+
+        it('GET /artifact/:id - should return artifact with project type info', async () => {
+            const artifactDetails = {
+                artifact: {
+                    artifact_id: '2',
+                    artifact_type_id: '8',
+                    artifact_type_name: 'User Research',
+                    name: 'User Research Document',
+                    state_id: '1',
+                    state_name: 'In Progress',
+                    available_transitions: [],
+                    project_type_id: '2',
+                    project_type_name: 'Product Design'
+                },
+                chat_completion: {
+                    messages: []
+                }
+            };
+
+            mockWorkflowOrchestrator.getArtifactDetails.mockResolvedValue(artifactDetails);
+
+            const response = await request(app.getHttpServer())
+                .get('/artifact/2')
+                .expect(200);
+
+            expect(response.body).toHaveProperty('artifact');
+            expect(response.body.artifact).toHaveProperty('artifact_id', '2');
+            expect(response.body.artifact).toHaveProperty('project_type_id', '2');
+            expect(response.body.artifact).toHaveProperty('project_type_name', 'Product Design');
         });
     });
 });

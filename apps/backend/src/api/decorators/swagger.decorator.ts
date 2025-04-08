@@ -1,4 +1,4 @@
-// src/api/decorators/swagger.decorators.ts
+// src/api/decorators/swagger.decorator.ts
 
 import { applyDecorators } from '@nestjs/common';
 import {
@@ -48,7 +48,10 @@ export const ApiCreateProject = () => {
     return applyDecorators(
         ApiTags('projects'),
         ApiOperation({ summary: 'Create a new project' }),
-        ApiBody({ type: ProjectCreateDto }),
+        ApiBody({
+            type: ProjectCreateDto,
+            description: 'Project creation data, optionally including project type ID'
+        }),
         ApiCreatedResponse({
             description: 'Project successfully created',
             type: ProjectSummaryDto
@@ -89,7 +92,10 @@ export const ApiViewProject = () => {
 export const ApiCreateArtifact = () => {
     return applyDecorators(
         ApiTags('artifacts'),
-        ApiOperation({ summary: 'Create a new artifact' }),
+        ApiOperation({
+            summary: 'Create a new artifact',
+            description: 'Creates a new artifact. The artifact type must be valid for the project\'s type.'
+        }),
         ApiBody({ type: ArtifactCreateDto }),
         ApiHeader({
             name: 'X-AI-Provider',
@@ -105,7 +111,9 @@ export const ApiCreateArtifact = () => {
             description: 'Artifact successfully created',
             type: ArtifactEditorResponseDto
         }),
-        ApiBadRequestResponse({ description: 'Invalid input data' }),
+        ApiBadRequestResponse({
+            description: 'Invalid input data or artifact type not allowed in this project type'
+        }),
         ApiNotFoundResponse({ description: 'Project not found' })
     );
 };

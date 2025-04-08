@@ -92,6 +92,30 @@ C4Component
 - **Services**:
   - **SSE Service**: Manages Server-Sent Events for real-time streaming of AI responses
 
+## Project Type Support
+
+The API supports multiple project types (such as Software Engineering, Product Design, etc.), each with their own:
+
+- Lifecycle phases (e.g., Requirements, Design for Software Engineering)
+- Artifact types specific to each phase
+- Validation rules for artifact creation and interaction
+
+All API endpoints include project type information in responses, and users can optionally specify a project type when creating projects.
+
+### Backward Compatibility
+
+- All new fields related to project types are optional
+- Existing clients continue to work without changes
+- Default project type is used when not specified
+
+### Project Type Validation
+
+When creating artifacts, the API validates:
+
+- The artifact type is valid for the project's type
+- The artifact belongs to a valid phase for the project type
+- Proper error messages are returned for validation failures
+
 ## API Endpoints
 
 ### Health Check
@@ -101,14 +125,19 @@ C4Component
 ### Projects
 
 - **POST /project/new**: Create a new project
+  - Optional `project_type_id` field to specify project type
+  - Defaults to Software Engineering when not specified
 - **GET /project**: List all projects
 - **GET /project/:project_id**: Get detailed project information
+  - Now includes project type information
 
 ### Artifacts
 
 - **POST /artifact/new**: Create a new artifact
+  - Validates artifact type against project type
 - **PUT /artifact/:artifact_id**: Update an artifact
 - **GET /artifact/:artifact_id**: Get artifact details
+  - Now includes project type information
 - **PUT /artifact/:artifact_id/ai**: Interact with an artifact using AI
 - **PUT /artifact/:artifact_id/state/:state_id**: Change artifact state
 
@@ -160,6 +189,56 @@ data: {"chunk":"design "}
 data: {"chunk":"this "}
 data: {"chunk":"feature."}
 data: {"chunk":"", "done":true, "artifact_content":"# Feature Design\n\n...", "commentary":"I've created a design that..."}
+```
+
+## Project Type Format in Responses
+
+Project responses now include project type information:
+
+```json
+{
+  "project_id": "1",
+  "name": "My Project",
+  "created_at": "2023-05-01T12:00:00Z",
+  "updated_at": null,
+  "project_type_id": "1",
+  "project_type_name": "Software Engineering",
+  "phases": [...]
+}
+```
+
+Artifact responses now include project type information:
+
+```json
+{
+  "artifact": {
+    "artifact_id": "1",
+    "artifact_type_id": "1",
+    "artifact_type_name": "Vision Document",
+    "name": "Project Vision",
+    "state_id": "2",
+    "state_name": "In Progress",
+    "project_type_id": "1",
+    "project_type_name": "Software Engineering",
+    ...
+  },
+  "chat_completion": {...}
+}
+```
+
+## Error Handling for Project Types
+
+When attempting to create an invalid artifact for a project type:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Artifact type \"Market Analysis\" is not allowed in this project type",
+  "error": "Bad Request",
+  "timestamp": "2025-04-08T12:00:00.000Z",
+  "path": "/artifact/new",
+  "method": "POST"
+}
 ```
 
 ## Using Streaming Endpoints
@@ -255,6 +334,7 @@ The tests verify:
 - Authorization (when implemented)
 - Streaming functionality
 - Edge cases and error scenarios
+- Project type validation and constraints
 
 ### Testing Strategies
 
@@ -283,6 +363,7 @@ The API Gateway provides comprehensive error handling through:
 2. Custom exception filters
 3. Detailed error messages
 4. Consistent error response format
+5. Project type validation errors
 
 ### Streaming Error Handling
 
@@ -296,9 +377,9 @@ The stream will then close, and the client should handle the error appropriately
 
 ## Future Improvements
 
-- Implement authentication and authorization
 - Add rate limiting
 - Implement request caching
 - Add API versioning
 - Implement client-specific API keys
 - Enhance streaming capabilities with progress reporting
+- Add endpoints for managing project types

@@ -43,7 +43,9 @@ describe('ArtifactController', () => {
                     state_name: 'Approved',
                 },
             ],
-            dependent_type_id: undefined,  // Changed null to undefined
+            dependent_type_id: undefined,
+            project_type_id: '1',
+            project_type_name: 'Software Engineering',
         },
         chat_completion: {
             messages: [
@@ -97,6 +99,8 @@ describe('ArtifactController', () => {
             const result = await controller.createArtifact(artifactCreateDto, mockUser, 'anthropic', 'claude-3');
 
             expect(result).toEqual(mockArtifactResponse);
+            expect(result.artifact).toHaveProperty('project_type_id', '1');
+            expect(result.artifact).toHaveProperty('project_type_name', 'Software Engineering');
             expect(workflowOrchestrator.createArtifact).toHaveBeenCalledWith(
                 Number(artifactCreateDto.project_id),
                 artifactCreateDto.artifact_type_name,
@@ -119,7 +123,7 @@ describe('ArtifactController', () => {
             await expect(controller.createArtifact(artifactCreateDto, mockUser)).rejects.toThrow(NotFoundException);
         });
 
-        it('should handle bad request error', async () => {
+        it('should handle invalid artifact type error', async () => {
             const artifactCreateDto: ArtifactCreateDto = {
                 project_id: '1',
                 artifact_type_name: 'Invalid Type',
@@ -127,6 +131,19 @@ describe('ArtifactController', () => {
 
             jest.spyOn(workflowOrchestrator, 'createArtifact').mockRejectedValue(
                 new Error('Invalid artifact type: Invalid Type')
+            );
+
+            await expect(controller.createArtifact(artifactCreateDto, mockUser)).rejects.toThrow(BadRequestException);
+        });
+
+        it('should handle project type constraint error', async () => {
+            const artifactCreateDto: ArtifactCreateDto = {
+                project_id: '1',
+                artifact_type_name: 'Market Analysis', // Not allowed in Software Engineering
+            };
+
+            jest.spyOn(workflowOrchestrator, 'createArtifact').mockRejectedValue(
+                new Error('Artifact type "Market Analysis" is not allowed in this project type')
             );
 
             await expect(controller.createArtifact(artifactCreateDto, mockUser)).rejects.toThrow(BadRequestException);
@@ -151,6 +168,8 @@ describe('ArtifactController', () => {
             const result = await controller.updateArtifact(artifactId, updateDto, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
+            expect(result.artifact).toHaveProperty('project_type_id', '1');
+            expect(result.artifact).toHaveProperty('project_type_name', 'Software Engineering');
             expect(workflowOrchestrator.updateArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
                 updateDto.name,
@@ -162,7 +181,7 @@ describe('ArtifactController', () => {
     });
 
     describe('viewArtifact', () => {
-        it('should return an artifact by ID', async () => {
+        it('should return an artifact by ID with project type info', async () => {
             const artifactId = '1';
 
             // Mock the getArtifactDetails method
@@ -171,6 +190,8 @@ describe('ArtifactController', () => {
             const result = await controller.viewArtifact(artifactId, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
+            expect(result.artifact).toHaveProperty('project_type_id', '1');
+            expect(result.artifact).toHaveProperty('project_type_name', 'Software Engineering');
             expect(workflowOrchestrator.getArtifactDetails).toHaveBeenCalledWith(Number(artifactId), mockUser.id);
         });
 
@@ -209,6 +230,8 @@ describe('ArtifactController', () => {
             );
 
             expect(result).toEqual(mockArtifactResponse);
+            expect(result.artifact).toHaveProperty('project_type_id', '1');
+            expect(result.artifact).toHaveProperty('project_type_name', 'Software Engineering');
             expect(workflowOrchestrator.interactArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
                 updateRequest.messages[0].content,
@@ -230,6 +253,8 @@ describe('ArtifactController', () => {
             const result = await controller.updateArtifactState(artifactId, stateId, mockUser);
 
             expect(result).toEqual(mockArtifactResponse);
+            expect(result.artifact).toHaveProperty('project_type_id', '1');
+            expect(result.artifact).toHaveProperty('project_type_name', 'Software Engineering');
             expect(workflowOrchestrator.transitionArtifact).toHaveBeenCalledWith(
                 Number(artifactId),
                 Number(stateId),
