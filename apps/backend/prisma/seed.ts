@@ -1,54 +1,8 @@
 import { PrismaClient, LifecyclePhase, ArtifactState, ArtifactType, ProjectType } from '@prisma/client';
+import { seedSoftwareEngineering } from './project-types/software-engineering';
+import { seedProductDesign } from './project-types/product-design';
 
 const prisma = new PrismaClient();
-
-async function seedProjectTypes(): Promise<ProjectType[]> {
-  const projectTypes = [
-    {
-      name: 'Software Engineering',
-      description: 'Traditional software engineering lifecycle with Requirements and Design phases',
-      isActive: true
-    }
-  ];
-
-  // Create project types
-  const createdProjectTypes: ProjectType[] = [];
-  for (const projectType of projectTypes) {
-    const createdProjectType = await prisma.projectType.create({
-      data: projectType
-    });
-    createdProjectTypes.push(createdProjectType);
-  }
-
-  console.log('Project types seeded');
-  return createdProjectTypes;
-}
-
-async function seedLifecyclePhases(projectTypes: ProjectType[]): Promise<LifecyclePhase[]> {
-  // Get the Software Engineering project type
-  const softwareEngineering = projectTypes.find(pt => pt.name === 'Software Engineering');
-
-  if (!softwareEngineering) {
-    throw new Error('Software Engineering project type not found');
-  }
-
-  const phases = [
-    { name: 'Requirements', order: 1, projectTypeId: softwareEngineering.id },
-    { name: 'Design', order: 2, projectTypeId: softwareEngineering.id },
-  ];
-
-  // Create phases
-  const createdPhases: LifecyclePhase[] = [];
-  for (const phase of phases) {
-    const createdPhase = await prisma.lifecyclePhase.create({
-      data: phase
-    });
-    createdPhases.push(createdPhase);
-  }
-
-  console.log('Lifecycle phases seeded');
-  return createdPhases;
-}
 
 async function seedArtifactStates(): Promise<ArtifactState[]> {
   const states = [
@@ -113,80 +67,6 @@ async function seedStateTransitions(states: ArtifactState[]): Promise<any[]> {
   return createdTransitions;
 }
 
-async function seedArtifactTypes(phases: LifecyclePhase[]): Promise<ArtifactType[]> {
-  // Get phase IDs
-  const requirementsPhase = phases.find((p: LifecyclePhase) => p.name === 'Requirements');
-  const designPhase = phases.find((p: LifecyclePhase) => p.name === 'Design');
-
-  if (!requirementsPhase || !designPhase) {
-    throw new Error('Required lifecycle phases not found');
-  }
-
-  // First, clear existing types to avoid conflicts
-  await prisma.artifactType.deleteMany({});
-
-  const types = [
-    { name: 'Vision Document', slug: 'vision', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Functional Requirements', slug: 'functional_requirements', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Non-Functional Requirements', slug: 'non_functional_requirements', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'Use Cases', slug: 'use_cases', syntax: 'md', lifecyclePhaseId: requirementsPhase.id },
-    { name: 'C4 Context', slug: 'c4_context', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },
-    { name: 'C4 Container', slug: 'c4_container', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },
-    { name: 'C4 Component', slug: 'c4_component', syntax: 'mermaid', lifecyclePhaseId: designPhase.id },
-  ];
-
-  // Create types
-  const createdTypes: ArtifactType[] = [];
-  for (const type of types) {
-    const createdType = await prisma.artifactType.create({
-      data: type
-    });
-    createdTypes.push(createdType);
-  }
-
-  console.log('Artifact types seeded');
-  return createdTypes;
-}
-
-async function seedTypeDependencies(types: ArtifactType[]): Promise<any[]> {
-  // First, clear existing dependencies to avoid conflicts
-  await prisma.typeDependency.deleteMany({});
-
-  // Find type objects by slug
-  const visionDoc = types.find((t: ArtifactType) => t.slug === 'vision');
-  const functionalReqs = types.find((t: ArtifactType) => t.slug === 'functional_requirements');
-  const nonFunctionalReqs = types.find((t: ArtifactType) => t.slug === 'non_functional_requirements');
-  const useCases = types.find((t: ArtifactType) => t.slug === 'use_cases');
-  const c4Context = types.find((t: ArtifactType) => t.slug === 'c4_context');
-  const c4Container = types.find((t: ArtifactType) => t.slug === 'c4_container');
-  const c4Component = types.find((t: ArtifactType) => t.slug === 'c4_component');
-
-  if (!visionDoc || !functionalReqs || !nonFunctionalReqs || !useCases ||
-    !c4Context || !c4Container || !c4Component) {
-    throw new Error('One or more required artifact types not found');
-  }
-
-  const dependencies = [
-    { dependentTypeId: functionalReqs.id, dependencyTypeId: visionDoc.id },
-    { dependentTypeId: nonFunctionalReqs.id, dependencyTypeId: functionalReqs.id },
-    { dependentTypeId: useCases.id, dependencyTypeId: nonFunctionalReqs.id },
-    { dependentTypeId: c4Container.id, dependencyTypeId: c4Context.id },
-    { dependentTypeId: c4Component.id, dependencyTypeId: c4Container.id },
-  ];
-
-  // Create dependencies
-  const createdDependencies = [];
-  for (const dependency of dependencies) {
-    const createdDependency = await prisma.typeDependency.create({
-      data: dependency
-    });
-    createdDependencies.push(createdDependency);
-  }
-
-  console.log('Type dependencies seeded');
-  return createdDependencies;
-}
-
 async function main(): Promise<void> {
   try {
     console.log('Start seeding...');
@@ -204,16 +84,16 @@ async function main(): Promise<void> {
     await prisma.artifactState.deleteMany({});
     await prisma.lifecyclePhase.deleteMany({});
     await prisma.project.deleteMany({});
-    await prisma.projectType.deleteMany({}); // Add this line
+    await prisma.projectType.deleteMany({}); 
     await prisma.user.deleteMany({});
 
-    // Run seeding functions in the correct order
-    const projectTypes = await seedProjectTypes();
-    const phases = await seedLifecyclePhases(projectTypes);
+    // Seed artifact states and transitions (shared across all project types)
     const states = await seedArtifactStates();
     await seedStateTransitions(states);
-    const types = await seedArtifactTypes(phases);
-    await seedTypeDependencies(types);
+    
+    // Seed project types from separate files
+    await seedSoftwareEngineering(prisma);
+    await seedProductDesign(prisma);
 
     console.log('Seeding finished');
   } catch (error) {

@@ -88,6 +88,10 @@ describe('Artifact Interactions (e2e)', () => {
 
     expect(response.body).toHaveProperty('project_id');
     projectId = response.body.project_id;
+
+    // Verify project type info
+    expect(response.body).toHaveProperty('project_type_id');
+    expect(response.body).toHaveProperty('project_type_name', 'Software Engineering');
   });
 
   it('should create a new artifact', async () => {
@@ -103,6 +107,10 @@ describe('Artifact Interactions (e2e)', () => {
     expect(response.body).toHaveProperty('artifact');
     expect(response.body.artifact).toHaveProperty('artifact_id');
     expect(response.body.chat_completion).toHaveProperty('messages');
+
+    // Verify artifact has project type info
+    expect(response.body.artifact).toHaveProperty('project_type_id');
+    expect(response.body.artifact).toHaveProperty('project_type_name', 'Software Engineering');
 
     // The initial response should have an assistant message with commentary
     expect(response.body.chat_completion.messages.length).toBeGreaterThan(0);
@@ -129,6 +137,10 @@ describe('Artifact Interactions (e2e)', () => {
     expect(response.body).toHaveProperty('chat_completion');
     expect(response.body.chat_completion).toHaveProperty('messages');
 
+    // Check project type info in response
+    expect(response.body.artifact).toHaveProperty('project_type_id');
+    expect(response.body.artifact).toHaveProperty('project_type_name', 'Software Engineering');
+
     // Verify that the response contains a new assistant message
     expect(response.body.chat_completion.messages.length).toBeGreaterThan(0);
   });
@@ -150,6 +162,10 @@ describe('Artifact Interactions (e2e)', () => {
 
     expect(response.body.artifact).toHaveProperty('artifact_version_content');
     // Note: With real AI, content may vary - we can only check the response structure
+
+    // Check project type info
+    expect(response.body.artifact).toHaveProperty('project_type_id');
+    expect(response.body.artifact).toHaveProperty('project_type_name', 'Software Engineering');
   });
 
   // Testing follow-up questions after content exists
@@ -171,5 +187,98 @@ describe('Artifact Interactions (e2e)', () => {
     expect(response.body).toHaveProperty('chat_completion');
     expect(response.body.chat_completion).toHaveProperty('messages');
     expect(response.body.chat_completion.messages.length).toBeGreaterThan(0);
+
+    // Check project type info
+    expect(response.body.artifact).toHaveProperty('project_type_id');
+    expect(response.body.artifact).toHaveProperty('project_type_name', 'Software Engineering');
+  });
+
+  // Additional tests for project type specific artifacts
+  describe('Project Type Specific Artifacts', () => {
+    let productDesignProjectId: string;
+    let userResearchArtifactId: string;
+
+    // Test creating a product design project
+    it('should create a Product Design project', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/project/new')
+        .set('Authorization', 'Bearer valid-token')
+        .send({
+          name: 'Test Product Design for Artifacts',
+          project_type_id: 2 // Product Design
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('project_id');
+      productDesignProjectId = response.body.project_id;
+      expect(response.body).toHaveProperty('project_type_id', '2');
+      expect(response.body).toHaveProperty('project_type_name', 'Product Design');
+    });
+
+    // Test creating a Product Design specific artifact
+    it('should create a User Research artifact for Product Design project', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/artifact/new')
+        .set('Authorization', 'Bearer valid-token')
+        .send({
+          project_id: productDesignProjectId,
+          artifact_type_name: 'User Research',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('artifact');
+      expect(response.body.artifact).toHaveProperty('artifact_id');
+      userResearchArtifactId = response.body.artifact.artifact_id;
+
+      // Verify artifact has correct project type info
+      expect(response.body.artifact).toHaveProperty('artifact_type_name', 'User Research');
+      expect(response.body.artifact).toHaveProperty('project_type_id', '2');
+      expect(response.body.artifact).toHaveProperty('project_type_name', 'Product Design');
+    });
+
+    // Test that project type validation prevents invalid artifact creation
+    it('should reject creating Vision Document in Product Design project', async () => {
+      await request(app.getHttpServer())
+        .post('/artifact/new')
+        .set('Authorization', 'Bearer valid-token')
+        .send({
+          project_id: productDesignProjectId,
+          artifact_type_name: 'Vision Document', // Software Engineering artifact
+        })
+        .expect(400); // Should be rejected with 400 Bad Request
+    });
+
+    // Test that information gathering works for Product Design artifacts
+    it('should allow AI to respond for Product Design artifact', async () => {
+      const response = await request(app.getHttpServer())
+        .put(`/artifact/${userResearchArtifactId}/ai`)
+        .set('Authorization', 'Bearer valid-token')
+        .send({
+          messages: [
+            {
+              role: 'user',
+              content: 'What should I include in a user research document?'
+            }
+          ]
+        })
+        .expect(200);
+
+      // The response should include project type information
+      expect(response.body).toHaveProperty('artifact');
+      expect(response.body).toHaveProperty('chat_completion');
+      expect(response.body.artifact).toHaveProperty('project_type_id', '2');
+      expect(response.body.artifact).toHaveProperty('project_type_name', 'Product Design');
+
+      // The AI response should mention user research concepts
+      const aiMessage = response.body.chat_completion.messages[0]?.content || '';
+      expect(aiMessage).toBeTruthy();
+
+      // Look for user research related terms in the AI response
+      const researchTerms = ['user', 'research', 'interview', 'persona', 'behavior'];
+      const containsResearchTerms = researchTerms.some(term =>
+        aiMessage.toLowerCase().includes(term)
+      );
+      expect(containsResearchTerms).toBe(true);
+    });
   });
 });

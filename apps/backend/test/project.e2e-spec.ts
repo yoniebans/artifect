@@ -1,3 +1,5 @@
+// test/project.e2e-spec.ts
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, ExecutionContext } from '@nestjs/common';
 import * as request from 'supertest';
@@ -76,13 +78,17 @@ describe('Project Management (e2e)', () => {
     it('should create a new project', async () => {
         const response = await request(app.getHttpServer())
             .post('/project/new')
-            .set('Authorization', 'Bearer valid-token')  // The token doesn't matter as we're mocking auth
+            .set('Authorization', 'Bearer valid-token')
             .send({ name: 'Test Project E2E' })
             .expect(201);
 
         expect(response.body).toHaveProperty('project_id');
         projectId = response.body.project_id;
         expect(response.body.name).toBe('Test Project E2E');
+
+        // Add check for default project type (Software Engineering)
+        expect(response.body).toHaveProperty('project_type_id');
+        expect(response.body).toHaveProperty('project_type_name', 'Software Engineering');
     });
 
     it('should list all projects', async () => {
@@ -98,6 +104,10 @@ describe('Project Management (e2e)', () => {
         const project = response.body.find((p: any) => p.project_id === projectId);
         expect(project).toBeDefined();
         expect(project.name).toBe('Test Project E2E');
+
+        // Check project type info
+        expect(project).toHaveProperty('project_type_id');
+        expect(project).toHaveProperty('project_type_name');
     });
 
     it('should get project details', async () => {
@@ -109,6 +119,10 @@ describe('Project Management (e2e)', () => {
         expect(response.body).toHaveProperty('project_id', projectId);
         expect(response.body).toHaveProperty('name', 'Test Project E2E');
         expect(response.body).toHaveProperty('phases');
+
+        // Check project type info
+        expect(response.body).toHaveProperty('project_type_id');
+        expect(response.body).toHaveProperty('project_type_name');
     });
 
     it('should return 404 for non-existent project', async () => {
@@ -116,5 +130,71 @@ describe('Project Management (e2e)', () => {
             .get('/project/99999')
             .set('Authorization', 'Bearer valid-token')
             .expect(404);
+    });
+
+    // Additional tests for project type functionality
+    describe('Project Type Support', () => {
+        let productDesignProjectId: string;
+
+        // Test creating a project with a specific project type
+        it('should create a project with specified project type', async () => {
+            const response = await request(app.getHttpServer())
+                .post('/project/new')
+                .set('Authorization', 'Bearer valid-token')
+                .send({
+                    name: 'Product Design Test Project',
+                    project_type_id: 2  // Product Design project type
+                })
+                .expect(201);
+
+            expect(response.body).toHaveProperty('project_id');
+            productDesignProjectId = response.body.project_id;
+
+            // Verify the project was created with the specified project type
+            expect(response.body).toHaveProperty('project_type_id', '2');
+            expect(response.body).toHaveProperty('project_type_name', 'Product Design');
+        });
+
+        // Test that project details include phases specific to the project type
+        it('should include phases specific to the project type', async () => {
+            // Get details for the Product Design project
+            const response = await request(app.getHttpServer())
+                .get(`/project/${productDesignProjectId}`)
+                .set('Authorization', 'Bearer valid-token')
+                .expect(200);
+
+            expect(response.body).toHaveProperty('project_id', productDesignProjectId);
+            expect(response.body).toHaveProperty('project_type_id', '2');
+            expect(response.body).toHaveProperty('project_type_name', 'Product Design');
+
+            // Check that phases match Product Design
+            expect(response.body).toHaveProperty('phases');
+            expect(Array.isArray(response.body.phases)).toBe(true);
+
+            // Extract phase names
+            const phaseNames = response.body.phases.map((phase: any) => phase.name);
+
+            // Product Design should have Research and Concept phases
+            expect(phaseNames).toContain('Research');
+            expect(phaseNames).toContain('Concept');
+
+            // Should NOT contain Software Engineering phases
+            expect(phaseNames).not.toContain('Implementation');
+        });
+
+        // Test that invalid project_type_id is properly validated
+        it('should validate project_type_id as a number', async () => {
+            const response = await request(app.getHttpServer())
+                .post('/project/new')
+                .set('Authorization', 'Bearer valid-token')
+                .send({
+                    name: 'Invalid Project Type Test',
+                    project_type_id: 'not-a-number'
+                })
+                .expect(400);
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body.message).toContain('project_type_id must be a number');
+        });
     });
 });
