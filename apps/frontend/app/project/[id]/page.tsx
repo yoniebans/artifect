@@ -192,21 +192,56 @@ export default function ProjectPage() {
   };
 
   const createStubArtifactHandler =
-    (phase: Phase) => (newStubArtifact: Artifact) => {
+    (phase: Phase) => (stubArtifact: Artifact) => {
       if (!project) return;
 
-      setProject((prevProject) => {
-        if (!prevProject) return null;
+      // For now, this stub artifact doesn't have type information
+      // We need to fetch available artifact types for this phase from the backend
+      // or use existing artifacts as a guide
 
-        return {
-          ...prevProject,
-          phases: prevProject.phases.map((p) =>
-            p.phase_id === phase.phase_id
-              ? { ...p, artifacts: [...p.artifacts, newStubArtifact] }
-              : p
-          ),
+      // Find artifact types in this phase that have been successfully created
+      const existingArtifactTypes = phase.artifacts
+        .filter((a) => a.artifact_id)
+        .map((a) => ({
+          id: a.artifact_type_id,
+          name: a.artifact_type_name,
+        }));
+
+      // If we have existing artifacts, use the first one's type as a guide
+      // In the future, this could be replaced with a proper lookup from the backend
+      if (existingArtifactTypes.length > 0) {
+        const defaultType = existingArtifactTypes[0];
+
+        // Complete the stub artifact with the type information
+        const newStubArtifact: Artifact = {
+          ...stubArtifact,
+          artifact_type_id: defaultType.id,
+          artifact_type_name: defaultType.name,
+          name: `New ${defaultType.name}`,
         };
-      });
+
+        setProject((prevProject) => {
+          if (!prevProject) return null;
+
+          return {
+            ...prevProject,
+            phases: prevProject.phases.map((p) =>
+              p.phase_id === phase.phase_id
+                ? { ...p, artifacts: [...p.artifacts, newStubArtifact] }
+                : p
+            ),
+          };
+        });
+      } else {
+        // If we don't have existing artifacts, we need to determine what type to create
+        // This would be better handled with a lookup to the backend for available types
+        // For now, just show a message indicating this limitation
+        toast({
+          title: "Cannot Add Artifact",
+          description: `No artifact types available for ${phase.name} phase. Start with the existing artifact first.`,
+          variant: "destructive",
+        });
+      }
     };
 
   const startArtifact = async (artifact: Artifact) => {
@@ -242,7 +277,45 @@ export default function ProjectPage() {
       });
     } catch (error) {
       console.error("Error starting artifact:", error);
-      // Error handling is already done in fetchWithLoading
+
+      // Handle errors in a generic way that doesn't hardcode project types
+      if (error instanceof Error) {
+        // Check for project type validation errors from the backend
+        if (error.message.includes("not allowed in this project type")) {
+          toast({
+            title: "Invalid Artifact Type",
+            description:
+              "This artifact type is not compatible with the current project configuration.",
+            variant: "destructive",
+          });
+        }
+        // Check for dependency errors
+        else if (
+          error.message.includes("dependency") ||
+          error.message.includes("dependent")
+        ) {
+          toast({
+            title: "Dependency Error",
+            description:
+              "This artifact depends on another artifact that must be completed first.",
+            variant: "destructive",
+          });
+        }
+        // Generic error fallback
+        else {
+          toast({
+            title: "Error",
+            description: "Failed to create artifact. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -362,11 +435,18 @@ export default function ProjectPage() {
     <ClientPageTransition>
       <div className="min-h-[93vh] bg-background text-foreground p-4 sm:p-8">
         <div className="max-w-6xl mx-auto space-y-8">
-          {/* Top section with project name and user button */}
+          {/* Top section with project name and type */}
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold slide-in-right">
-              {project?.name || "Loading..."}
-            </h1>
+            <div className="flex flex-col gap-1">
+              <h1 className="text-3xl font-bold slide-in-right">
+                {project?.name || "Loading..."}
+              </h1>
+              {project?.project_type_name && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary w-fit">
+                  {project.project_type_name}
+                </span>
+              )}
+            </div>
             <div className="flex gap-4">
               <Button
                 variant="outline"
@@ -419,7 +499,7 @@ export default function ProjectPage() {
             </Button>
           </div>
 
-          {/* Artifact tables section */}
+          {/* Artifact tables section with project type information */}
           {project?.phases.map((phase, index) => {
             const isPreviousPhaseApproved =
               index === 0 ||
@@ -435,6 +515,7 @@ export default function ProjectPage() {
                 <ArtifactTable
                   phase={phase}
                   isDisabled={!isPreviousPhaseApproved}
+                  projectTypeName={project.project_type_name}
                   onEditArtifact={editArtifact}
                   onStartArtifact={startArtifact}
                   onApproveArtifact={approveArtifact}

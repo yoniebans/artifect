@@ -16,6 +16,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -23,12 +30,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLoadingApi } from "@/components/loading/useLoadingApi";
 import { ClientPageTransition } from "@/components/transitions/ClientPageTransition";
-import { IProject as Project } from "@artifect/shared";
+import {
+  IProject as Project,
+  IProjectType as ProjectType,
+} from "@artifect/shared";
 import { useLoading } from "@/components/loading/LoadingContext";
 import { BackendAuthErrorDisplay } from "@/components/BackendAuthDisplay";
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectTypes, setProjectTypes] = useState<ProjectType[]>([]);
+  const [selectedProjectType, setSelectedProjectType] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -45,6 +57,7 @@ export default function Dashboard() {
 
   // Use ref to prevent infinite fetch loops
   const projectsLoaded = useRef(false);
+  const projectTypesLoaded = useRef(false);
 
   // Handle authentication loading with the central loading system
   useEffect(() => {
@@ -78,6 +91,36 @@ export default function Dashboard() {
     setLoadingMessage,
     hasBackendAuthFailed,
   ]);
+
+  // Fetch project types
+  const fetchProjectTypes = useCallback(async () => {
+    if (projectTypesLoaded.current || hasBackendAuthFailed) return;
+
+    try {
+      const data = await fetchWithLoading<ProjectType[]>(
+        "/project/types",
+        "GET",
+        undefined,
+        undefined,
+        "Loading project types...",
+        false // Don't show full screen loading for this
+      );
+
+      setProjectTypes(data);
+
+      // Set default selected project type if available
+      if (data.length > 0) {
+        setSelectedProjectType(data[0].id);
+      }
+
+      projectTypesLoaded.current = true;
+    } catch (error) {
+      console.error("Error fetching project types:", error);
+      // Don't show error toast as this is a secondary feature
+      // Just set an empty array of project types
+      setProjectTypes([]);
+    }
+  }, [fetchWithLoading, hasBackendAuthFailed]);
 
   const fetchProjects = useCallback(async () => {
     if (projectsLoaded.current || hasBackendAuthFailed) return;
@@ -122,8 +165,27 @@ export default function Dashboard() {
       !hasBackendAuthFailed
     ) {
       fetchProjects();
+      fetchProjectTypes(); // Also fetch project types
     }
-  }, [isAuthenticated, fetchProjects, isAuthLoading, hasBackendAuthFailed]);
+  }, [
+    isAuthenticated,
+    fetchProjects,
+    fetchProjectTypes,
+    isAuthLoading,
+    hasBackendAuthFailed,
+  ]);
+
+  // Dialog open handler - reset form and ensure project types are loaded
+  const handleOpenDialog = () => {
+    setNewProjectName("");
+
+    // Ensure project types are loaded when opening the dialog
+    if (!projectTypesLoaded.current) {
+      fetchProjectTypes();
+    }
+
+    setIsDialogOpen(true);
+  };
 
   const createProject = async () => {
     if (hasBackendAuthFailed) return; // Skip if auth has failed
@@ -138,12 +200,23 @@ export default function Dashboard() {
     }
 
     try {
+      // Prepare the request body with project type if selected
+      const requestBody: {
+        name: string;
+        project_type_id?: number;
+      } = {
+        name: newProjectName,
+      };
+
+      // Add project_type_id if a valid one is selected
+      if (selectedProjectType) {
+        requestBody.project_type_id = parseInt(selectedProjectType, 10);
+      }
+
       const newProject = await fetchWithLoading<Project>(
         "/project/new",
         "POST",
-        {
-          name: newProjectName,
-        },
+        requestBody,
         undefined,
         "Creating new project...",
         true,
@@ -155,7 +228,9 @@ export default function Dashboard() {
       setIsDialogOpen(false);
       toast({
         title: "Success",
-        description: "Project created successfully.",
+        description: `Project created successfully with type: ${
+          newProject.project_type_name || "Default"
+        }`,
       });
     } catch (error) {
       console.error("Error creating project:", error);
@@ -186,7 +261,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <Button
-                  onClick={() => setIsDialogOpen(true)}
+                  onClick={handleOpenDialog}
                   className="slide-in-right animation-delay-150"
                 >
                   Create
@@ -207,6 +282,43 @@ export default function Dashboard() {
                         className="col-span-3"
                         autoFocus
                       />
+                    </div>
+
+                    {/* Project Type Dropdown */}
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="project-type" className="text-right">
+                        Project Type
+                      </Label>
+                      <div className="col-span-3">
+                        <Select
+                          value={selectedProjectType}
+                          onValueChange={setSelectedProjectType}
+                        >
+                          <SelectTrigger id="project-type">
+                            <SelectValue placeholder="Select a project type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projectTypes.length > 0 ? (
+                              projectTypes.map((type) => (
+                                <SelectItem key={type.id} value={type.id}>
+                                  {type.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="default" disabled>
+                                Loading project types...
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {selectedProjectType && projectTypes.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {projectTypes.find(
+                              (type) => type.id === selectedProjectType
+                            )?.description || ""}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -245,9 +357,16 @@ export default function Dashboard() {
                     <Card className="transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
                       <CardHeader>
                         <CardTitle>{project.name}</CardTitle>
-                        <CardDescription>
-                          Created{" "}
-                          {new Date(project.created_at).toLocaleDateString()}
+                        <CardDescription className="flex flex-col gap-1">
+                          <span>
+                            Created{" "}
+                            {new Date(project.created_at).toLocaleDateString()}
+                          </span>
+                          {project.project_type_name && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                              {project.project_type_name}
+                            </span>
+                          )}
                         </CardDescription>
                       </CardHeader>
                     </Card>

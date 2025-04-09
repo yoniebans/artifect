@@ -17,19 +17,42 @@ import { useToast } from "@/hooks/use-toast";
 import { FullscreenPreview } from "@/components/FullscreenPreview";
 import { IArtifact as Artifact, IPhase as Phase } from "@artifect/shared";
 
-const artifactTypeColors: { [key: string]: string } = {
-  "Vision Document": "bg-purple-500",
-  "Functional Requirements": "bg-blue-500",
-  "Non-Functional Requirements": "bg-green-500",
-  "Use Cases": "bg-yellow-500",
-  "C4 Context": "bg-red-500",
-  "C4 Container": "bg-indigo-500",
-  "C4 Component": "bg-pink-500",
+// Generate colors dynamically from the artifact type name
+// This avoids hardcoding specific artifact types
+const getArtifactTypeColor = (typeName: string): string => {
+  // Create a deterministic hash from the type name
+  const hash = Array.from(typeName).reduce(
+    (acc, char) => char.charCodeAt(0) + ((acc << 5) - acc),
+    0
+  );
+
+  // Use the hash to select from a list of nice colors
+  const colors = [
+    "bg-purple-500",
+    "bg-blue-500",
+    "bg-green-500",
+    "bg-yellow-500",
+    "bg-red-500",
+    "bg-indigo-500",
+    "bg-pink-500",
+    "bg-emerald-500",
+    "bg-sky-500",
+    "bg-amber-500",
+    "bg-rose-500",
+    "bg-violet-500",
+    "bg-cyan-500",
+    "bg-orange-500",
+    "bg-lime-500",
+    "bg-fuchsia-500",
+  ];
+
+  return colors[Math.abs(hash) % colors.length];
 };
 
 interface ArtifactTableProps {
   phase: Phase;
   isDisabled: boolean;
+  projectTypeName?: string;
   onEditArtifact: (artifact: Artifact) => void;
   onStartArtifact: (artifact: Artifact) => void;
   onApproveArtifact: (artifact: Artifact) => void;
@@ -40,6 +63,7 @@ interface ArtifactTableProps {
 export function ArtifactTable({
   phase,
   isDisabled,
+  projectTypeName,
   onEditArtifact,
   onStartArtifact,
   onApproveArtifact,
@@ -62,46 +86,40 @@ export function ArtifactTable({
   };
 
   const handleAddArtifact = () => {
-    let newArtifactTypeName = "";
-    let newArtifactTypeId = "";
-    if (phase.name === "Requirements") {
-      newArtifactTypeName = "Use Cases";
-      newArtifactTypeId = "4";
-    } else if (phase.name === "Design") {
-      newArtifactTypeName = "C4 Component";
-      newArtifactTypeId = "7";
-    } else {
+    // First, find artifacts in this phase that don't have IDs yet (stubs)
+    const stubArtifacts = phase.artifacts.filter((a) => !a.artifact_id);
+
+    // If we have a stub, use its type
+    if (stubArtifacts.length > 0) {
+      const stub = stubArtifacts[0];
+
+      // Create an empty stub artifact with just the phase information
+      const newArtifact: Artifact = {
+        artifact_id: "",
+        artifact_type_id: "",
+        artifact_type_name: "",
+        artifact_version_number: "",
+        artifact_version_content: "",
+        name: "",
+        dependent_type_id: null,
+        state_id: "1",
+        state_name: "To Do",
+        available_transitions: [
+          {
+            state_id: "2",
+            state_name: "In Progress",
+          },
+        ],
+      };
+
+      // Let the parent component fill in the appropriate artifact type details
+      onAddArtifact(newArtifact);
+
       toast({
-        title: "Error",
-        description: "Invalid phase for adding artifact",
-        variant: "destructive",
+        title: "Adding Artifact",
+        description: `New artifact will be added to ${phase.name} phase.`,
       });
-      return;
     }
-
-    const newArtifact: Artifact = {
-      artifact_id: "",
-      artifact_type_id: newArtifactTypeId,
-      artifact_type_name: newArtifactTypeName,
-      artifact_version_number: "",
-      artifact_version_content: "",
-      name: `New ${newArtifactTypeName}`,
-      dependent_type_id: null,
-      state_id: "1",
-      state_name: "To Do",
-      available_transitions: [
-        {
-          state_id: "2",
-          state_name: "In Progress",
-        },
-      ],
-    };
-
-    onAddArtifact(newArtifact);
-    toast({
-      title: "Success",
-      description: `New ${newArtifactTypeName} artifact added.`,
-    });
   };
 
   const handleNameClick = (artifact: Artifact) => {
@@ -163,6 +181,41 @@ export function ArtifactTable({
     (artifact) => artifact.state_name === "Approved"
   );
 
+  // Determine if we can add more artifacts to this phase
+  // This uses a more generic approach without hardcoding specific artifact types
+  const canAddMoreArtifacts = (): boolean => {
+    // Get the count of non-empty artifacts
+    const realArtifactsCount = phase.artifacts.filter(
+      (a) => a.artifact_id
+    ).length;
+
+    // If no real artifacts, we can always add
+    if (realArtifactsCount === 0) return true;
+
+    // Check if there are any artifacts that have repeatable types
+    // We'll use a heuristic - if an artifact type appears more than once,
+    // it's probably repeatable
+    const artifactTypeCounts = phase.artifacts.reduce(
+      (counts: { [key: string]: number }, artifact) => {
+        const typeName = artifact.artifact_type_name;
+        counts[typeName] = (counts[typeName] || 0) + 1;
+        return counts;
+      },
+      {}
+    );
+
+    // If any type appears more than once already, assume it's repeatable
+    const hasRepeatableTypes = Object.values(artifactTypeCounts).some(
+      (count) => count > 1
+    );
+    if (hasRepeatableTypes) return true;
+
+    // As a fallback, check if all existing artifacts are approved
+    return phase.artifacts.every(
+      (artifact) => artifact.state_name === "Approved"
+    );
+  };
+
   return (
     <>
       <div
@@ -174,7 +227,9 @@ export function ArtifactTable({
           <h2 className="text-2xl font-bold">{phase.name}</h2>
           <Button
             variant="outline"
-            disabled={isDisabled || isAddArtifactDisabled}
+            disabled={
+              isDisabled || (isAddArtifactDisabled && !canAddMoreArtifacts())
+            }
             onClick={handleAddArtifact}
             className="transition-all duration-300 hover:shadow-md"
           >
@@ -205,10 +260,9 @@ export function ArtifactTable({
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         <Badge
-                          className={`${
-                            artifactTypeColors[artifact.artifact_type_name] ||
-                            "bg-gray-500"
-                          } text-white transition-all duration-200`}
+                          className={`${getArtifactTypeColor(
+                            artifact.artifact_type_name
+                          )} text-white transition-all duration-200`}
                         >
                           {artifact.artifact_type_name}
                         </Badge>
