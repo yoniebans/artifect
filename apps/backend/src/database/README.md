@@ -156,15 +156,15 @@ erDiagram
 
 ### Project Structure
 
-- **ProjectType**: Types of projects (Software Development, Product Design, etc.)
-- **Project**: Top-level container for artifacts, associated with a project type
+- **ProjectType**: Types of projects (Software Engineering, Product Design, etc.) that define the available lifecycle phases and artifact types for each project category
+- **Project**: Top-level container for artifacts, associated with a specific project type
 - **LifecyclePhase**: Development stages (Requirements, Design, etc.) specific to a project type
-- **ArtifactType**: Categories for artifacts (Vision, Requirements, etc.)
+- **ArtifactType**: Categories for artifacts (Vision, Requirements, etc.) that belong to specific lifecycle phases within a project type
 - **TypeDependency**: Dependencies between artifact types
 
 ### Artifact Management
 
-- **Artifact**: Generic container for all project elements
+- **Artifact**: Generic container for all project elements, associated with a specific project and artifact type
 - **ArtifactVersion**: Version history for artifacts
 - **ArtifactState**: Status tracking (To Do, In Progress, Approved)
 - **StateTransition**: Valid state transitions
@@ -273,11 +273,12 @@ The database schema is defined in `prisma/schema.prisma` and managed through Pri
 
 ### Key Schema Features
 
+- **Project Type Hierarchy**: The schema is organized around project types (e.g., Software Engineering, Product Design) which determine the available lifecycle phases and artifact types
 - **Snake Case Mapping**: Database columns use snake_case with `@map` directives
 - **Relations**: Fully defined relationships between entities
 - **Indexes**: Strategic indexes for performance optimization
 - **Constraints**: Unique constraints and foreign key relationships
-- **Project Types**: Projects are now organized by project types, which define appropriate lifecycle phases
+- **Project Types**: Projects are organized by project types, which define appropriate lifecycle phases and available artifact types
 
 ## Database Operations
 
@@ -297,6 +298,14 @@ $ npm run db:migrate:deploy
 # Seed the database with initial data
 $ npm run db:seed
 ```
+
+The seed process creates:
+
+1. Project types (Software Engineering, Product Design)
+2. Lifecycle phases for each project type
+3. Artifact types specific to each lifecycle phase
+4. Dependencies between artifact types
+5. Artifact states and transitions
 
 ### Database Reset
 
@@ -385,6 +394,17 @@ await this.prisma.$transaction(async (tx) => {
 6. **Separation of Concerns**: Keep database access logic separated from business logic
 7. **Testing**: Use a separate test database and the `cleanDatabase` method
 8. **Project Types**: Respect the project type hierarchy when creating and querying entities
+9. **Cross-Project Type Validation**: Ensure artifacts belong to appropriate project types
+
+## Project Type System
+
+The database schema now supports a flexible project type system:
+
+1. **Multiple Project Types**: The system can support different project methodologies (Software Engineering, Product Design, etc.)
+2. **Type-Specific Phases**: Each project type has its own set of lifecycle phases
+3. **Type-Specific Artifacts**: Artifact types are defined within the context of a project type's phases
+4. **Validation**: The system prevents creating artifacts that aren't valid for a project's type
+5. **Dependencies**: Artifact dependencies are enforced within each project type
 
 ## Future Improvements
 
@@ -395,3 +415,4 @@ await this.prisma.$transaction(async (tx) => {
 - Optimize indexes based on query patterns
 - Implement database-level row-level security
 - Add configurable project type templates
+- Support for custom project type definitions
