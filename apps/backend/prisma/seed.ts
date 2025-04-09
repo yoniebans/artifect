@@ -1,7 +1,7 @@
 import { PrismaClient, LifecyclePhase, ArtifactState, ArtifactType, ProjectType } from '@prisma/client';
 import { seedSoftwareEngineering } from './project-types/software-engineering';
 import { seedProductDesign } from './project-types/product-design';
-
+import { seedBusinessPlan } from './project-types/business-plan';
 const prisma = new PrismaClient();
 
 async function seedArtifactStates(): Promise<ArtifactState[]> {
@@ -94,6 +94,7 @@ async function main(): Promise<void> {
     // Seed project types from separate files
     await seedSoftwareEngineering(prisma);
     await seedProductDesign(prisma);
+    await seedBusinessPlan(prisma);
 
     console.log('Seeding finished');
   } catch (error) {
