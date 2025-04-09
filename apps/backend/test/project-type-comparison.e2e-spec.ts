@@ -18,6 +18,8 @@ import {
     PRODUCT_DESIGN_ARTIFACT_TYPES
 } from './test-utils';
 import { User } from '@prisma/client';
+import { CacheService } from 'src/services/cache/cache.service';
+import { PrismaService } from 'src/database/prisma.service';
 
 /**
  * E2E test for comparing workflows between different project types
@@ -153,9 +155,42 @@ describe('Project Type Comparison (e2e)', () => {
         console.log(`Product Design Phases: ${productDesignPhases.join(', ')}`);
     });
 
+    it('should debug artifact types', async () => {
+        // Get direct database access
+        const prismaService = app.get(PrismaService);
+
+        // Query the database directly
+        const dbTypes = await prismaService.artifactType.findMany({
+            include: { lifecyclePhase: { include: { projectType: true } } }
+        });
+
+        console.log('DB Artifact Types:',
+            dbTypes.map(t => ({
+                id: t.id,
+                name: t.name,
+                phase: t.lifecyclePhase.name,
+                projectType: t.lifecyclePhase.projectType.name
+            }))
+        );
+
+        // Check what's in the cache
+        const cacheService = app.get(CacheService);
+        // Assuming a method that dumps the cached artifact types
+        console.log('Expected Vision Doc:', SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT);
+        console.log('Expected User Research:', PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH);
+
+        // Try to get these types directly
+        const visionType = await cacheService.getArtifactTypeInfo(SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT);
+        const researchType = await cacheService.getArtifactTypeInfo(PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH);
+
+        console.log('Vision Type in Cache:', visionType);
+        console.log('Research Type in Cache:', researchType);
+    });
+
     // Create a Vision Document in Software Engineering project
     it('should create a Vision Document in Software Engineering project', async () => {
         console.log(`Creating artifact with type: ${SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT}`);
+        console.log(`Software Project ID: ${softwareProjectId}`);
 
         const response = await request(app.getHttpServer())
             .post('/artifact/new')

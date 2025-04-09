@@ -609,17 +609,17 @@ export class ArtifactRepository implements ArtifactRepositoryInterface {
 
     /**
      * Get dependency types for an artifact type
-     * @param artifactType Type name
+     * @param artifactTypeSlug Type slug
      * @returns Array of dependency artifact types
      */
-    async getArtifactTypeDependencies(artifactType: string): Promise<ArtifactType[]> {
+    async getArtifactTypeDependencies(artifactTypeSlug: string): Promise<ArtifactType[]> {
         // Find the artifact type
         const artifactTypeObj = await this.prisma.artifactType.findUnique({
-            where: { slug: artifactType }
+            where: { slug: artifactTypeSlug }
         });
 
         if (!artifactTypeObj) {
-            throw new Error(`Invalid artifact type: ${artifactType}`);
+            throw new Error(`Invalid artifact type: ${artifactTypeSlug}`);
         }
 
         // Find type dependencies where this type is the dependent_type_id

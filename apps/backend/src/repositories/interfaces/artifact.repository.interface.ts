@@ -58,7 +58,7 @@ export interface ArtifactRepositoryInterface extends BaseRepositoryInterface<
 
     getLifecyclePhases(): Promise<LifecyclePhase[]>;
 
-    getArtifactTypeDependencies(artifactType: string): Promise<ArtifactType[]>;
+    getArtifactTypeDependencies(artifactTypeSlug: string): Promise<ArtifactType[]>;
 
     isValidStateTransition(fromState: string, toState: string): Promise<boolean>;
 

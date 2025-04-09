@@ -40,6 +40,7 @@ export class DependencyResolver {
         const projectTypeId = artifact.project?.projectTypeId;
         const artifactTypeId = artifact.artifactTypeId || artifact.artifact_type?.id;
         const artifactTypeName = artifact.artifact_type?.name || 'Unknown Type';
+        const artifactTypeSlug = artifact.artifact_type?.slug || this.slugify(artifactTypeName);
 
         if (!projectTypeId || !artifactTypeId) {
             this.logger.warn(`Missing project type or artifact type for artifact ${artifact.id}`);
@@ -48,7 +49,7 @@ export class DependencyResolver {
 
         try {
             // Get the artifact type dependencies based on the artifact type
-            const dependencyTypes = await this.getDependencyTypes(artifactTypeName, projectTypeId);
+            const dependencyTypes = await this.getDependencyTypes(artifactTypeSlug, projectTypeId);
 
             // Resolve each dependency
             for (const depType of dependencyTypes) {
@@ -64,17 +65,16 @@ export class DependencyResolver {
 
     /**
      * Get dependency types for an artifact type
-     * @param artifactType The artifact type name
+     * @param artifactTypeSlug The artifact type slug
      * @param projectTypeId The project type ID
      * @returns Array of dependency information
      */
     private async getDependencyTypes(
-        artifactType: string,
+        artifactTypeSlug: string,
         projectTypeId: number,
     ): Promise<ArtifactTypeDependency[]> {
         // Get the dependencies from the repository
-        const dependencyArtifactTypes = await this.artifactRepository.getArtifactTypeDependencies(artifactType);
-
+        const dependencyArtifactTypes = await this.artifactRepository.getArtifactTypeDependencies(artifactTypeSlug);
         // Map to our internal dependency type structure with additional metadata
         return Promise.all(
             dependencyArtifactTypes.map(async (depType) => {

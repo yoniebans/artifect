@@ -42,8 +42,6 @@ export class AuthService {
         throw new UnauthorizedException('User not found in Clerk');
       }
 
-      console.log('clerkUser', clerkUser);
-
       // Create new user in our database
       user = await this.userRepository.create({
         clerkId: clerkUserId,

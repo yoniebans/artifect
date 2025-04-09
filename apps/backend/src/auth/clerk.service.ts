@@ -54,9 +54,9 @@ export class ClerkService {
       // Set JWT key if available - this allows offline verification
       if (this.jwtKey) {
         options.jwtKey = this.jwtKey;
-        console.log('Using JWT verification key for token verification');
+        this.logger.debug('Using JWT verification key for token verification');
       } else {
-        console.log('No JWT key provided, using online JWKS verification');
+        this.logger.debug('No JWT key provided, using online JWKS verification');
       }
 
       // Verify the JWT token

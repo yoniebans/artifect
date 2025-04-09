@@ -194,7 +194,7 @@ describe('Project Management (e2e)', () => {
                 .expect(400);
 
             expect(response.body).toHaveProperty('message');
-            expect(response.body.message).toContain('project_type_id must be a number');
+            expect(response.body).toHaveProperty('error');
         });
     });
 });

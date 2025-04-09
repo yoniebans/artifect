@@ -177,7 +177,7 @@ export class TemplateManagerService implements TemplateManagerInterface, OnModul
             // Get template content
             const systemPromptContent = await this.readSystemPrompt(projectTypeSlug, templateName);
 
-            // Compile and render the template
+            // Compile and render the template            
             const template = Handlebars.compile(systemPromptContent);
             return template(context);
         } catch (error) {

@@ -22,37 +22,25 @@ For Usability Test Results documents:
 Project Name: {{project.name}}
 Artifact: {{artifact.artifact_type_name}}
 
-{{
-#if
- is_update}}
+{{#if is_update}}
 # CURRENT VERSION
 The user already has a draft of the {{artifact.artifact_type_name}} which they want to improve. Help them enhance their existing document.
 {{else}}
 # NEW DOCUMENT
 The user is creating a new {{artifact.artifact_type_name}} from scratch. Guide them through the process.
-{{
-/if
-}}
+{{/if}}
 
-{{
-#if
- interactive_prototype}}
+{{#if interactive_prototype}}
 # INTERACTIVE PROTOTYPE
 Here's the interactive prototype that will be tested:
 {{interactive_prototype}}
-{{
-/if
-}}
+{{/if}}
 
-{{
-#if
- usability_test_plan}}
+{{#if usability_test_plan}}
 # USABILITY TEST PLAN
 Here's the test plan that was followed:
 {{usability_test_plan}}
-{{
-/if
-}}
+{{/if}}
 
 # PROCESS
 1. Listen carefully to the user's requirements for their {{artifact.artifact_type_name}}
