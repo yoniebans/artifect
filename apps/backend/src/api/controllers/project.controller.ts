@@ -2,12 +2,13 @@
 
 import { Controller, Get, Post, Body, Param, NotFoundException, Req } from '@nestjs/common';
 import { WorkflowOrchestratorService } from '../../workflow/workflow-orchestrator.service';
-import { ProjectCreateDto, ProjectSummaryDto, ProjectDto } from '../dto';
-import { ApiCreateProject, ApiListProjects, ApiViewProject } from '../decorators/swagger.decorator';
+import { ProjectCreateDto, ProjectSummaryDto, ProjectDto, ProjectTypeDto } from '../dto';
+import { ApiCreateProject, ApiListProjects, ApiListProjectTypes, ApiViewProject } from '../decorators/swagger.decorator';
 import { CurrentUser } from '../../auth/decorators/user.decorator';
 import { User } from '@prisma/client';
 import { Admin } from '../../auth/decorators/admin.decorator';
 import { RequestWithUser } from '../../auth/interfaces/request-with-user.interface';
+
 
 /**
  * Controller for project-related endpoints
@@ -130,6 +131,24 @@ export class ProjectController {
                 throw new NotFoundException(error.message);
             }
             throw error;
+        }
+    }
+
+    /**
+     * Get all available project types
+     * @returns Array of project types
+     */
+    @Get('types')
+    @ApiListProjectTypes()
+    async listProjectTypes(): Promise<ProjectTypeDto[]> {
+        try {
+            const projectTypes = await this.workflowOrchestrator.listProjectTypes();
+            // Ensure we always return an array
+            return Array.isArray(projectTypes) ? projectTypes : [];
+        } catch (error) {
+            // Log error but return empty array rather than throwing
+            console.error('Error fetching project types:', error);
+            return [];
         }
     }
 

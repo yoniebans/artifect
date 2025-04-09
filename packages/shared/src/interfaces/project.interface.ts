@@ -22,3 +22,9 @@ export interface IProjectCreate {
     name: string;
     project_type_id?: number; // Added optional project type ID
 }
+
+export interface IProjectType {
+    id: string;
+    name: string;
+    description?: string;
+}

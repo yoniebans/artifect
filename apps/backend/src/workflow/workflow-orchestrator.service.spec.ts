@@ -9,6 +9,7 @@ import { ProjectTypeRepository } from '../repositories/project-type.repository';
 import { TemplateManagerService } from '../templates/template-manager.service';
 import { ContextManagerService } from '../context/context-manager.service';
 import { AIAssistantService } from '../ai/ai-assistant.service';
+import { Logger } from '@nestjs/common';
 
 describe('WorkflowOrchestratorService', () => {
     // Save original environment
@@ -119,6 +120,8 @@ describe('WorkflowOrchestratorService', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
+
+        jest.spyOn(Logger.prototype, 'error').mockImplementation();
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -660,6 +663,65 @@ describe('WorkflowOrchestratorService', () => {
 
             // Execute & Verify
             await expect(service.transitionArtifact(1, 999)).rejects.toThrow('Failed to update artifact state');
+        });
+    });
+
+    describe('listProjectTypes', () => {
+        it('should return mapped project types from repository', async () => {
+            // Mock data from repository
+            const mockProjectTypes = [
+                {
+                    id: 1,
+                    name: 'Software Engineering',
+                    description: 'Traditional software engineering lifecycle',
+                    isActive: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    lifecyclePhases: []
+                },
+                {
+                    id: 2,
+                    name: 'Product Design',
+                    description: 'Product design with user-centered focus',
+                    isActive: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    lifecyclePhases: []
+                }
+            ];
+
+            // Mock the repository method
+            jest.spyOn(projectTypeRepository, 'findAll').mockResolvedValue(mockProjectTypes);
+
+            // Call the service method
+            const result = await service.listProjectTypes();
+
+            // Verify the result
+            expect(result).toEqual([
+                {
+                    id: '1',
+                    name: 'Software Engineering',
+                    description: 'Traditional software engineering lifecycle'
+                },
+                {
+                    id: '2',
+                    name: 'Product Design',
+                    description: 'Product design with user-centered focus'
+                }
+            ]);
+            expect(projectTypeRepository.findAll).toHaveBeenCalled();
+        });
+
+        it('should handle errors and return empty array', async () => {
+            // Mock repository throwing an error
+            jest.spyOn(projectTypeRepository, 'findAll').mockRejectedValue(new Error('Database error'));
+
+            // Call the service method
+            const result = await service.listProjectTypes();
+
+            // Verify error handling
+            expect(result).toEqual([]);
+            expect(Logger.prototype.error).toHaveBeenCalledWith(expect.stringContaining('Error fetching project types'));
         });
     });
 });

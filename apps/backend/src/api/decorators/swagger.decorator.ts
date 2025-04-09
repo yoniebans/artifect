@@ -22,7 +22,8 @@ import {
     ArtifactUpdateDto,
     ArtifactUpdateAIRequestDto,
     ArtifactEditorResponseDto,
-    AIProviderDto
+    AIProviderDto,
+    ProjectTypeDto
 } from '../dto';
 
 // Health Controller Decorators
@@ -214,6 +215,17 @@ export const ApiListAIProviders = () => {
         ApiOkResponse({
             description: 'List of AI providers',
             type: [AIProviderDto]
+        })
+    );
+};
+
+export const ApiListProjectTypes = () => {
+    return applyDecorators(
+        ApiTags('projects'),
+        ApiOperation({ summary: 'List all available project types' }),
+        ApiOkResponse({
+            description: 'List of project types',
+            type: [ProjectTypeDto]
         })
     );
 };

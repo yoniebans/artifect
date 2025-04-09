@@ -101,6 +101,13 @@ export interface WorkflowOrchestratorInterface {
     listProjectsByUser(userId: number): Promise<ProjectMetadata[]>;
 
     /**
+     * List all available project types
+     * 
+     * @returns Array of project type metadata
+     */
+    listProjectTypes(): Promise<{ id: string; name: string; description?: string }[]>;
+
+    /**
      * Get detailed view of a project with artifacts
      * 
      * @param projectId Project ID

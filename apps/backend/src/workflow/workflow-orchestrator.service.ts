@@ -19,6 +19,7 @@ import {
 } from './interfaces/workflow-orchestrator.interface';
 import { ArtifactWithRelations } from '../context/types/artifact-with-relations';
 import { ArtifactWithRelationsInternal } from './types/artifact-with-relations-internal';
+import { ProjectTypeDto } from 'src/api/dto/project.dto';
 
 /**
  * Main service for orchestrating the workflow of the application
@@ -107,6 +108,34 @@ export class WorkflowOrchestratorService implements WorkflowOrchestratorInterfac
     }));
 
     return projectsWithTypes;
+  }
+
+  /**
+   * List all available project types
+   * 
+   * @returns Array of project type metadata
+   */
+  async listProjectTypes(): Promise<{ id: string; name: string; description?: string }[]> {
+    try {
+      // Get all active project types using the repository
+      const projectTypes = await this.projectTypeRepository.findAll();
+
+      // Ensure we're returning an array
+      if (!Array.isArray(projectTypes)) {
+        this.logger.warn('Project types repository returned non-array result');
+        return [];
+      }
+
+      // Map to the expected format
+      return projectTypes.map(type => ({
+        id: String(type.id),
+        name: type.name,
+        description: type.description || undefined
+      }));
+    } catch (error) {
+      this.logger.error(`Error fetching project types: ${error.message}`);
+      return []; // Return empty array on error
+    }
   }
 
   /**

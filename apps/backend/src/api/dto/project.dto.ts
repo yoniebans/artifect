@@ -47,3 +47,16 @@ export class ProjectDto extends ProjectSummaryDto {
     @Type(() => ArtifactPhaseDto)
     phases: ArtifactPhaseDto[] = [];
 }
+
+export class ProjectTypeDto {
+    @IsString()
+    id: string;
+
+    @IsString()
+    @IsNotEmpty()
+    name: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+}

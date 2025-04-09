@@ -35,6 +35,7 @@ describe('ProjectController', () => {
                         listProjects: jest.fn(),
                         listProjectsByUser: jest.fn(),
                         viewProject: jest.fn(),
+                        listProjectTypes: jest.fn(),
                     },
                 },
                 {
@@ -202,6 +203,41 @@ describe('ProjectController', () => {
 
             await expect(controller.viewProject(projectId, mockUser)).rejects.toThrow(NotFoundException);
             expect(workflowOrchestrator.viewProject).toHaveBeenCalledWith(Number(projectId), mockUser.id);
+        });
+    });
+
+    describe('listProjectTypes', () => {
+        it('should return a list of available project types', async () => {
+            const expectedProjectTypes = [
+                {
+                    id: '1',
+                    name: 'Software Engineering',
+                    description: 'Traditional software engineering lifecycle'
+                },
+                {
+                    id: '2',
+                    name: 'Product Design',
+                    description: 'Product design with user-centered focus'
+                }
+            ];
+
+            // Mock the workflow orchestrator method
+            jest.spyOn(workflowOrchestrator, 'listProjectTypes').mockResolvedValue(expectedProjectTypes);
+
+            const result = await controller.listProjectTypes();
+
+            expect(result).toEqual(expectedProjectTypes);
+            expect(workflowOrchestrator.listProjectTypes).toHaveBeenCalled();
+        });
+
+        it('should return an empty array if no project types exist', async () => {
+            jest.spyOn(workflowOrchestrator, 'listProjectTypes').mockResolvedValue([]);
+
+            const result = await controller.listProjectTypes();
+
+            expect(result).toEqual([]);
+            expect(result.length).toBe(0);
+            expect(workflowOrchestrator.listProjectTypes).toHaveBeenCalled();
         });
     });
 });
