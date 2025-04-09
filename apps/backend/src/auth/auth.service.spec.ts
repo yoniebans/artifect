@@ -15,6 +15,7 @@ describe('AuthService', () => {
         id: 1,
         clerkId: 'clerk_123',
         email: 'test@example.com',
+        emailAddresses: [{ emailAddress: 'test@example.com' }],
         firstName: 'Test',
         lastName: 'User',
         isAdmin: false,
@@ -112,7 +113,7 @@ describe('AuthService', () => {
             jest.spyOn(userRepository, 'findByClerkId').mockResolvedValue(null);
 
             // Mock clerk service to return user details
-            jest.spyOn(clerkService, 'getUserDetails').mockResolvedValue(mockClerkUser);
+            jest.spyOn(clerkService, 'getUserDetails').mockResolvedValue(mockUser);
 
             // Mock user repository to create new user
             jest.spyOn(userRepository, 'create').mockResolvedValue(mockUser);
