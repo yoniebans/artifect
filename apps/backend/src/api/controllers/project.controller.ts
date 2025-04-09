@@ -62,6 +62,24 @@ export class ProjectController {
         return this.workflowOrchestrator.listProjects() as unknown as ProjectSummaryDto[];
     }
 
+    /**
+     * Get all available project types
+     * @returns Array of project types
+     */
+    @Get('types')
+    @ApiListProjectTypes()
+    async listProjectTypes(): Promise<ProjectTypeDto[]> {
+        try {
+            const projectTypes = await this.workflowOrchestrator.listProjectTypes();
+            // Ensure we always return an array
+            return Array.isArray(projectTypes) ? projectTypes : [];
+        } catch (error) {
+            // Log error but return empty array rather than throwing
+            console.error('Error fetching project types:', error);
+            return [];
+        }
+    }
+
     @Get(':project_id')
     @ApiViewProject()
     async viewProject(
@@ -131,24 +149,6 @@ export class ProjectController {
                 throw new NotFoundException(error.message);
             }
             throw error;
-        }
-    }
-
-    /**
-     * Get all available project types
-     * @returns Array of project types
-     */
-    @Get('types')
-    @ApiListProjectTypes()
-    async listProjectTypes(): Promise<ProjectTypeDto[]> {
-        try {
-            const projectTypes = await this.workflowOrchestrator.listProjectTypes();
-            // Ensure we always return an array
-            return Array.isArray(projectTypes) ? projectTypes : [];
-        } catch (error) {
-            // Log error but return empty array rather than throwing
-            console.error('Error fetching project types:', error);
-            return [];
         }
     }
 
