@@ -174,7 +174,8 @@ describe('Authentication (e2e)', () => {
             await prismaService.project.create({
                 data: {
                     name: 'Test Project',
-                    userId: testUser.id
+                    userId: testUser.id,
+                    projectTypeId: 1
                 }
             });
             console.log('Created test project for user', testUser.id);
