@@ -1,7 +1,7 @@
 // test/global-setup.ts
 
-import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
 import { createTestUser } from './test-utils';
 
 /**
@@ -13,7 +13,7 @@ module.exports = async () => {
     // Debug: Print database URL (obfuscating password)
     console.log('DATABASE_URL =', process.env.DATABASE_URL?.replace(/:.+@/, ':****@'));
 
-    // Create a Prisma client
+    // Create a Prisma client just to check connection
     const prisma = new PrismaClient();
 
     try {
@@ -26,9 +26,15 @@ module.exports = async () => {
             throw new Error('Database connection failed. Make sure PostgreSQL is running.');
         }
 
-        // Clean the database to start fresh
-        console.log('🧹 Cleaning database...');
-        await cleanDatabase(prisma);
+        // Run the reset script to clean and reset sequences
+        console.log('🧹 Running database reset script...');
+        try {
+            execSync('npx ts-node prisma/reset.ts', { stdio: 'inherit' });
+            console.log('✅ Database reset successfully');
+        } catch (error) {
+            console.error('❌ Failed to reset database:', error);
+            throw error;
+        }
 
         // Run the seed script using the CLI
         console.log('🌱 Seeding database...');
@@ -53,32 +59,3 @@ module.exports = async () => {
         await prisma.$disconnect();
     }
 };
-
-/**
- * Cleans the database by truncating all tables
- */
-async function cleanDatabase(prisma: PrismaClient) {
-    try {
-        // Disable foreign key checks temporarily
-        await prisma.$executeRaw`SET session_replication_role = 'replica';`;
-
-        // Get all table names from the database
-        const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`
-      SELECT tablename FROM pg_tables 
-      WHERE schemaname = 'public' AND tablename != '_prisma_migrations';
-    `;
-
-        // Truncate each table (in a safe way that doesn't break foreign keys)
-        for (const { tablename } of tables) {
-            await prisma.$executeRawUnsafe(`TRUNCATE TABLE "public"."${tablename}" CASCADE;`);
-        }
-
-        // Re-enable foreign key checks
-        await prisma.$executeRaw`SET session_replication_role = 'origin';`;
-
-        console.log(`✅ Truncated ${tables.length} tables`);
-    } catch (error) {
-        console.error('❌ Failed to clean database:', error);
-        throw error;
-    }
-}

@@ -11,6 +11,35 @@ const DUMMY_EMAIL = 'test_dummy@example.com';
 export const TEST_USER_CLERK_ID = process.env.TEST_USER_CLERK_ID || '';
 export const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL || '';
 
+// Project Type IDs (these should always be 1 and 2 after fresh seeding)
+export const PROJECT_TYPES = {
+    SOFTWARE_ENGINEERING: 1,
+    PRODUCT_DESIGN: 2
+};
+
+// Software Engineering Artifact Types (exactly as defined in seed script)
+export const SOFTWARE_ARTIFACT_TYPES = {
+    VISION_DOCUMENT: 'Vision Document',
+    FUNCTIONAL_REQUIREMENTS: 'Functional Requirements',
+    NONFUNCTIONAL_REQUIREMENTS: 'Non-Functional Requirements',
+    USE_CASES: 'Use Cases',
+    C4_CONTEXT: 'C4 Context Diagram',
+    C4_CONTAINER: 'C4 Container Diagram',
+    C4_COMPONENT: 'C4 Component Diagram'
+};
+
+// Product Design Artifact Types (exactly as defined in seed script)
+export const PRODUCT_DESIGN_ARTIFACT_TYPES = {
+    USER_RESEARCH: 'User Research',
+    DESIGN_BRIEF: 'Design Brief',
+    WIREFRAMES: 'Wireframes',
+    MOCKUPS: 'Mockups',
+    INTERACTIVE_PROTOTYPE: 'Interactive Prototype',
+    DESIGN_SYSTEM: 'Design System',
+    USABILITY_TEST_PLAN: 'Usability Test Plan',
+    USABILITY_TEST_RESULTS: 'Usability Test Results'
+};
+
 /**
  * Interface for authentication test data
  */

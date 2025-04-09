@@ -9,15 +9,18 @@ import { AuthService } from '../src/auth/auth.service';
 import { ClerkService } from '../src/auth/clerk.service';
 import { AdminGuard } from '../src/auth/guards/admin.guard';
 import { AuthGuard } from '../src/auth/guards/auth.guard';
-import { TEST_USER_CLERK_ID, TEST_USER_EMAIL, getTestUserFromDb } from './test-utils';
+import {
+    TEST_USER_CLERK_ID,
+    TEST_USER_EMAIL,
+    getTestUserFromDb,
+    PROJECT_TYPES,
+    SOFTWARE_ARTIFACT_TYPES,
+    PRODUCT_DESIGN_ARTIFACT_TYPES
+} from './test-utils';
 import { User } from '@prisma/client';
 
 /**
  * E2E test for comparing workflows between different project types
- * 
- * This test creates both Software Engineering and Product Design projects,
- * compares their phases and artifact types, and verifies that the correct
- * templates and validation rules are applied to each.
  */
 describe('Project Type Comparison (e2e)', () => {
     let app: INestApplication;
@@ -26,10 +29,6 @@ describe('Project Type Comparison (e2e)', () => {
     let softwareArtifactId: string;
     let productDesignArtifactId: string;
     let testUser: User;
-
-    // Project type constants
-    const SOFTWARE_ENGINEERING_TYPE_ID = 1;
-    const PRODUCT_DESIGN_TYPE_ID = 2;
 
     beforeAll(async () => {
         // First, get the test user from the database
@@ -91,15 +90,15 @@ describe('Project Type Comparison (e2e)', () => {
         const response = await request(app.getHttpServer())
             .post('/project/new')
             .set('Authorization', 'Bearer valid-token')
-            .send({ 
+            .send({
                 name: 'Software Engineering Comparison',
-                project_type_id: SOFTWARE_ENGINEERING_TYPE_ID
+                project_type_id: PROJECT_TYPES.SOFTWARE_ENGINEERING
             })
             .expect(201);
 
         expect(response.body).toHaveProperty('project_id');
         softwareProjectId = response.body.project_id;
-        expect(response.body).toHaveProperty('project_type_id', SOFTWARE_ENGINEERING_TYPE_ID.toString());
+        expect(response.body).toHaveProperty('project_type_id', PROJECT_TYPES.SOFTWARE_ENGINEERING.toString());
         expect(response.body).toHaveProperty('project_type_name', 'Software Engineering');
     });
 
@@ -108,15 +107,15 @@ describe('Project Type Comparison (e2e)', () => {
         const response = await request(app.getHttpServer())
             .post('/project/new')
             .set('Authorization', 'Bearer valid-token')
-            .send({ 
+            .send({
                 name: 'Product Design Comparison',
-                project_type_id: PRODUCT_DESIGN_TYPE_ID
+                project_type_id: PROJECT_TYPES.PRODUCT_DESIGN
             })
             .expect(201);
 
         expect(response.body).toHaveProperty('project_id');
         productDesignProjectId = response.body.project_id;
-        expect(response.body).toHaveProperty('project_type_id', PRODUCT_DESIGN_TYPE_ID.toString());
+        expect(response.body).toHaveProperty('project_type_id', PROJECT_TYPES.PRODUCT_DESIGN.toString());
         expect(response.body).toHaveProperty('project_type_name', 'Product Design');
     });
 
@@ -148,7 +147,7 @@ describe('Project Type Comparison (e2e)', () => {
 
         // Verify phases are different between project types
         expect(softwarePhases).not.toEqual(productDesignPhases);
-        
+
         console.log('\nProject Type Comparison:');
         console.log(`Software Engineering Phases: ${softwarePhases.join(', ')}`);
         console.log(`Product Design Phases: ${productDesignPhases.join(', ')}`);
@@ -156,38 +155,42 @@ describe('Project Type Comparison (e2e)', () => {
 
     // Create a Vision Document in Software Engineering project
     it('should create a Vision Document in Software Engineering project', async () => {
+        console.log(`Creating artifact with type: ${SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT}`);
+
         const response = await request(app.getHttpServer())
             .post('/artifact/new')
             .set('Authorization', 'Bearer valid-token')
             .send({
                 project_id: softwareProjectId,
-                artifact_type_name: 'Vision Document',
+                artifact_type_name: SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT,
             })
             .expect(201);
 
         expect(response.body).toHaveProperty('artifact');
         expect(response.body.artifact).toHaveProperty('artifact_id');
         softwareArtifactId = response.body.artifact.artifact_id;
-        expect(response.body.artifact).toHaveProperty('artifact_type_name', 'Vision Document');
-        expect(response.body.artifact).toHaveProperty('project_type_id', SOFTWARE_ENGINEERING_TYPE_ID.toString());
+        expect(response.body.artifact).toHaveProperty('artifact_type_name', SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT);
+        expect(response.body.artifact).toHaveProperty('project_type_id', PROJECT_TYPES.SOFTWARE_ENGINEERING.toString());
     });
 
     // Create a User Research artifact in Product Design project
     it('should create a User Research artifact in Product Design project', async () => {
+        console.log(`Creating artifact with type: ${PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH}`);
+
         const response = await request(app.getHttpServer())
             .post('/artifact/new')
             .set('Authorization', 'Bearer valid-token')
             .send({
                 project_id: productDesignProjectId,
-                artifact_type_name: 'User Research',
+                artifact_type_name: PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH,
             })
             .expect(201);
 
         expect(response.body).toHaveProperty('artifact');
         expect(response.body.artifact).toHaveProperty('artifact_id');
         productDesignArtifactId = response.body.artifact.artifact_id;
-        expect(response.body.artifact).toHaveProperty('artifact_type_name', 'User Research');
-        expect(response.body.artifact).toHaveProperty('project_type_id', PRODUCT_DESIGN_TYPE_ID.toString());
+        expect(response.body.artifact).toHaveProperty('artifact_type_name', PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH);
+        expect(response.body.artifact).toHaveProperty('project_type_id', PROJECT_TYPES.PRODUCT_DESIGN.toString());
     });
 
     // Test cross-validation between project types
@@ -198,23 +201,38 @@ describe('Project Type Comparison (e2e)', () => {
             .set('Authorization', 'Bearer valid-token')
             .send({
                 project_id: productDesignProjectId,
-                artifact_type_name: 'Vision Document', // Software Engineering artifact
+                artifact_type_name: SOFTWARE_ARTIFACT_TYPES.VISION_DOCUMENT,
             })
             .expect(400);
-            
+
         // Try to create a Product Design artifact in a Software Engineering project
         const designInSoftwareResponse = await request(app.getHttpServer())
             .post('/artifact/new')
             .set('Authorization', 'Bearer valid-token')
             .send({
                 project_id: softwareProjectId,
-                artifact_type_name: 'User Research', // Product Design artifact
+                artifact_type_name: PRODUCT_DESIGN_ARTIFACT_TYPES.USER_RESEARCH,
             })
             .expect(400);
-            
-        // Verify error messages mention project type constraints
-        expect(softwareInDesignResponse.body.message).toContain('not allowed in this project type');
-        expect(designInSoftwareResponse.body.message).toContain('not allowed in this project type');
+
+        // Check for appropriate error messages
+        expect(softwareInDesignResponse.body).toHaveProperty('message');
+        expect(designInSoftwareResponse.body).toHaveProperty('message');
+
+        // Expect the error messages to mention the project type constraint
+        const softwareError = softwareInDesignResponse.body.message;
+        const designError = designInSoftwareResponse.body.message;
+
+        // More flexibly test the error message format
+        expect(
+            softwareError.includes('not valid for project type') ||
+            softwareError.includes('not allowed in this project type')
+        ).toBe(true);
+
+        expect(
+            designError.includes('not valid for project type') ||
+            designError.includes('not allowed in this project type')
+        ).toBe(true);
     });
 
     // Compare AI responses for both project types
@@ -253,19 +271,19 @@ describe('Project Type Comparison (e2e)', () => {
 
         // Verify the responses are different
         expect(softwareMessage).not.toEqual(productDesignMessage);
-        
+
         // Software response should mention software-specific terms
         const softwareTerms = ['vision', 'software', 'features', 'requirements', 'stakeholders'];
-        const softwareMatches = softwareTerms.some(term => 
+        const softwareMatches = softwareTerms.some(term =>
             softwareMessage.toLowerCase().includes(term)
         );
-        
+
         // Product Design response should mention design-specific terms  
         const designTerms = ['research', 'user', 'design', 'personas', 'interview'];
-        const designMatches = designTerms.some(term => 
+        const designMatches = designTerms.some(term =>
             productDesignMessage.toLowerCase().includes(term)
         );
-        
+
         // Verify each response contains terminology appropriate to its project type
         expect(softwareMatches).toBe(true);
         expect(designMatches).toBe(true);

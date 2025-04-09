@@ -22,7 +22,7 @@ async function resetDatabase() {
       prisma.artifactState.deleteMany({}),
       prisma.lifecyclePhase.deleteMany({}),
       prisma.project.deleteMany({}),
-      prisma.projectType.deleteMany({}), // Add this line
+      prisma.projectType.deleteMany({}),
       prisma.user.deleteMany({})
     ]);
 
@@ -34,7 +34,7 @@ async function resetDatabase() {
         r RECORD;
       BEGIN
         FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
-          EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.sequence_name) || ' RESTART WITH 1;';
+          EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.sequence_name) || ' RESTART WITH 1';
         END LOOP;
       END $$;
     `);
@@ -48,4 +48,10 @@ async function resetDatabase() {
   }
 }
 
-resetDatabase();
+// Execute if called directly
+if (require.main === module) {
+  resetDatabase();
+}
+
+// Export for programmatic use
+export default resetDatabase;

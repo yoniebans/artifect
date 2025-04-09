@@ -50,6 +50,7 @@
     "test:all": "dotenv -e .env.test -- jest --runInBand --config=jest.config.js",
     "test:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json --runInBand",
     "test:repositories:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json \"repositories.*\\.e2e-spec\\.ts$\" --runInBand",
+    "test:project:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json \"project.*\\.e2e-spec\\.ts$\" --runInBand",
     "test:complete:e2e": "dotenv -e .env.test -- jest --config=./test/jest-e2e.json \"complete.*\\.e2e-spec\\.ts$\" --runInBand",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
