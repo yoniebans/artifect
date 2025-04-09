@@ -128,7 +128,7 @@ describe('DependencyResolver', () => {
         expect(dependencies.size).toBe(1);
         expect(dependencies.get('vision')).toBe('Vision content');
 
-        expect(artifactRepository.getArtifactTypeDependencies).toHaveBeenCalledWith('Functional Requirements');
+        expect(artifactRepository.getArtifactTypeDependencies).toHaveBeenCalledWith('functional_requirements');
         expect(artifactRepository.getArtifactsByType).toHaveBeenCalledWith(mockArtifact, 'Vision Document');
     });
 
