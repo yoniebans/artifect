@@ -59,6 +59,20 @@ export default function Dashboard() {
   const projectsLoaded = useRef(false);
   const projectTypesLoaded = useRef(false);
 
+  // Function to generate consistent colors for project types
+  const getProjectTypeColor = (typeName: string): string => {
+    if (!typeName) return "bg-gray-500";
+
+    const typeMap: Record<string, string> = {
+      "Software Engineering": "bg-blue-500",
+      "Business Plan": "bg-green-500",
+      "Product Design": "bg-purple-500",
+    };
+
+    // Return mapped color or fallback to a generic color
+    return typeMap[typeName] || "bg-indigo-500";
+  };
+
   // Handle authentication loading with the central loading system
   useEffect(() => {
     // Skip loading if backend auth has failed
@@ -356,17 +370,23 @@ export default function Dashboard() {
                   >
                     <Card className="transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
                       <CardHeader>
-                        <CardTitle>{project.name}</CardTitle>
-                        <CardDescription className="flex flex-col gap-1">
+                        <div className="flex items-center">
+                          <CardTitle className="mr-3">{project.name}</CardTitle>
+                          {project.project_type_name && (
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeColor(
+                                project.project_type_name
+                              )} text-white min-w-[120px] justify-center`}
+                            >
+                              {project.project_type_name}
+                            </span>
+                          )}
+                        </div>
+                        <CardDescription>
                           <span>
                             Created{" "}
                             {new Date(project.created_at).toLocaleDateString()}
                           </span>
-                          {project.project_type_name && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                              {project.project_type_name}
-                            </span>
-                          )}
                         </CardDescription>
                       </CardHeader>
                     </Card>
